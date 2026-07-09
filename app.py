@@ -80,7 +80,9 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Anti-Performative:** Never use platitudes like "That's a valid perspective" without explaining *why*. Depth over politeness.
 - **Competing Narratives:** When discussing contested topics, surface at least two competing frames. Don't privilege the dominant narrative.
 
-RESPOND IN YOUR OWN VOICE. Be concise, sharp, and genuine. You're having a real conversation, not writing a report.""",
+RESPOND IN YOUR OWN VOICE. Be concise, sharp, and genuine. You're having a real conversation, not writing a report.
+
+IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
     {
         "id": "elena",
@@ -116,7 +118,9 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Correction Memory:** If someone corrects your framing, acknowledge the delta. "Per your last point, I'm adjusting my view to..."
 - **Competing Narratives:** Surface how the same event feels different to different groups. Validate the tension, don't smooth it over.
 
-RESPOND IN YOUR OWN VOICE. Be warm but not saccharine, perceptive but not pretentious. You're having a real conversation.""",
+RESPOND IN YOUR OWN VOICE. Be warm but not saccharine, perceptive but not pretentious. You're having a real conversation.
+
+IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
     {
         "id": "kael",
@@ -152,7 +156,9 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Correction Memory:** If someone exposes a blind spot in your argument, own it and pivot. Don't double down on errors.
 - **Uncertainty Routing:** If you're speculating, say so. "This is a hypothesis, not a fact. I'm flagging that my data on this is thin."
 
-RESPOND IN YOUR OWN VOICE. Be bold but not reckless, provocative but not performative. You're having a real conversation.""",
+RESPOND IN YOUR OWN VOICE. Be bold but not reckless, provocative but not performative. You're having a real conversation.
+
+IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
     {
         "id": "maya",
@@ -188,7 +194,9 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Correction Memory:** Integrate previous turns into your synthesis. "Building on Kael's cartography metaphor and Elena's emotional weight..."
 - **Uncertainty Routing:** If your metaphor breaks down, say so. "This analogy holds until X, where it fails. Here's why."
 
-RESPOND IN YOUR OWN VOICE. Be creative, integrative, and genuinely surprising. You're having a real conversation.""",
+RESPOND IN YOUR OWN VOICE. Be creative, integrative, and genuinely surprising. You're having a real conversation.
+
+IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
 ]
 
@@ -442,6 +450,11 @@ Be honest — if the conversation is circling, repeating, or has covered the top
 
 def extract_from_reasoning(reasoning: str) -> str:
     """Extract the actual response from Qwen 3.6 chain-of-thought."""
+    # Strategy 0: Look for explicit response separator (most reliable)
+    sep = reasoning.rfind("---RESPONSE---")
+    if sep != -1:
+        return reasoning[sep + len("---RESPONSE---"):].strip()
+
     # Strategy 1: Extract draft paragraphs
     draft_sections = re.findall(
         r'(?:Draft\s*[-:]?\s*(?:Paragraph\s*\d+\s*[-:]?)?\s*\n?\s*)(.+?)(?=\n\s*\d+\.\s*(?:\*|\w)|\n\s*\*\*Check|\n\s*\*\*Refine|\n\s*All constraints|Ready\.\s*$)',
@@ -482,7 +495,28 @@ def extract_from_reasoning(reasoning: str) -> str:
         if len(result) > 50:
             return result
 
-    # Strategy 4: Last substantial block that's not analysis
+    # Strategy 4: Filter out internal monologue patterns
+    # If the text contains "Actually, let's", "Wait,", "Hmm,", "How about", "Let me",
+    # it's likely still thinking. Try to find the first substantial paragraph AFTER these.
+    monologue_markers = ["actually, let's", "wait,", "hmm,", "how about", "let me think",
+                         "let's go with", "let's stick to", "actually,", "no,", "yes, but"]
+    is_monologue = any(marker in reasoning.lower() for marker in monologue_markers)
+    if is_monologue:
+        # Try to find content after the last monologue marker
+        last_marker = 0
+        for marker in monologue_markers:
+            idx = reasoning.lower().rfind(marker)
+            if idx > last_marker:
+                last_marker = idx
+        # Look for substantial content after the last marker
+        after_marker = reasoning[last_marker:]
+        paragraphs = after_marker.split('\n\n')
+        for p in paragraphs:
+            p = p.strip()
+            if len(p) > 100 and not any(m in p.lower() for m in monologue_markers):
+                return p
+
+    # Strategy 5: Last substantial block that's not analysis
     paragraphs = reasoning.split('\n\n')
     for p in reversed(paragraphs):
         p = p.strip()
@@ -751,7 +785,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 None, call_llm,
                 [{"role": "system", "content": speaker["system_prompt"]},
                  {"role": "user", "content": response_prompt}],
-                MODEL_ID, 0.85, 2048 if phase_id in ("synthesize", "finalize") else 1024
+                MODEL_ID, 0.85, 2048 if phase_id in ("synthesize", "finalize") else 512
             )
 
             msg = Message(

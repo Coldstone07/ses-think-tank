@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SES Think Tank v3 — Multi-Agent Brainstorming</title>
+<style>
+  :root {
+    --bg: #0a0a0f; --surface: #12121a; --surface2: #1a1a25; --border: #2a2a3a;
+    --text: #e0e0e8; --text-dim: #8888a0; --accent: #6366f1;
+    --rook: #6366f1; --elena: #ec4899; --kael: #f59e0b; --maya: #06b6d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg); color: var(--text); height: 100vh;
+    display: grid; grid-template-columns: 280px 1fr 360px;
+    grid-template-rows: auto 1fr; overflow: hidden;
+  }
+
+  /* ─── HEADER ─── */
+  .header {
+    grid-column: 1 / -1; padding: 12px 24px;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 24px;
+  }
+  .header h1 { font-size: 18px; font-weight: 700; }
+  .header h1 span { color: var(--accent); }
+
+  /* Workflow mode selector */
+  .mode-selector {
+    display: flex; gap: 4px; background: var(--bg); border-radius: 8px; padding: 3px;
+  }
+  .mode-btn {
+    padding: 6px 16px; border: none; border-radius: 6px;
+    background: transparent; color: var(--text-dim); cursor: pointer;
+    font-size: 13px; font-weight: 500; transition: all 0.2s;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .mode-btn:hover { color: var(--text); background: var(--surface2); }
+  .mode-btn.active { background: var(--accent); color: white; }
+
+  /* Topic input */
+  .topic-input {
+    flex: 1; max-width: 500px; padding: 8px 14px;
+    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    color: var(--text); font-size: 14px; outline: none;
+  }
+  .topic-input:focus { border-color: var(--accent); }
+
+  /* Start button */
+  .start-btn {
+    padding: 8px 24px; background: var(--accent); border: none;
+    border-radius: 8px; color: white; font-weight: 600; cursor: pointer;
+    font-size: 14px; transition: all 0.2s;
+  }
+  .start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* ─── LEFT PANEL: Personas ─── */
+  .left-panel {
+    background: var(--surface); border-right: 1px solid var(--border);
+    padding: 16px; overflow-y: auto;
+  }
+  .panel-title {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-dim); margin-bottom: 12px;
+  }
+  .persona-card {
+    padding: 12px; border-radius: 10px; margin-bottom: 8px;
+    background: var(--surface2); border: 2px solid transparent;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .persona-card:hover { border-color: var(--border); }
+  .persona-card.selected { border-color: var(--accent); }
+  .persona-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .persona-icon { font-size: 20px; }
+  .persona-name { font-weight: 600; font-size: 14px; }
+  .persona-title { font-size: 11px; color: var(--text-dim); }
+
+  /* Phase info */
+  .phase-info {
+    margin-top: 20px; padding: 14px; border-radius: 10px;
+    background: var(--surface2); border: 1px solid var(--border);
+  }
+  .phase-name { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .phase-desc { font-size: 12px; color: var(--text-dim); margin-top: 6px; }
+  .phase-speakers { margin-top: 8px; font-size: 11px; color: var(--text-dim); }
+
+  /* ─── CENTER: Chat ─── */
+  .center-panel {
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Phase progress bar */
+  .phase-bar {
+    padding: 10px 20px; background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    min-height: 44px;
+  }
+  .phase-step {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: var(--text-dim);
+  }
+  .phase-step.active { color: var(--accent); font-weight: 600; }
+  .phase-step.done { color: #22c55e; }
+  .phase-arrow { color: var(--border); font-size: 10px; }
+
+  /* Chat messages */
+  .chat-area {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 16px;
+  }
+  .message {
+    display: flex; gap: 12px; max-width: 90%;
+    animation: fadeIn 0.3s ease;
+  }
+  .message.left { align-self: flex-start; }
+  .message.right { align-self: flex-end; flex-direction: row-reverse; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  .msg-avatar {
+    width: 36px; height: 36px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .msg-bubble {
+    padding: 12px 16px; border-radius: 14px;
+    background: var(--surface2); border: 1px solid var(--border);
+    font-size: 14px; line-height: 1.6; max-width: 600px;
+  }
+  .msg-meta {
+    font-size: 11px; color: var(--text-dim); margin-top: 6px;
+    display: flex; gap: 10px; align-items: center;
+  }
+  .msg-phase-tag {
+    padding: 2px 8px; border-radius: 4px; font-size: 10px;
+    background: var(--accent); color: white; font-weight: 600;
+  }
+
+  /* Typing indicator */
+  .typing {
+    display: flex; gap: 12px; align-items: center;
+    padding: 8px 0; font-size: 13px; color: var(--text-dim);
+  }
+  .typing-dots span {
+    display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--accent);
+    animation: bounce 1.4s infinite; margin: 0 2px;
+  }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+  /* ─── RIGHT PANEL: Details + Deliverable ─── */
+  .right-panel {
+    background: var(--surface); border-left: 1px solid var(--border);
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Topic display */
+  .topic-display {
+    padding: 16px; border-bottom: 1px solid var(--border);
+  }
+  .topic-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .topic-text { font-size: 15px; font-weight: 600; margin-top: 6px; line-height: 1.4; }
+
+  /* Stats */
+  .stats {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+  }
+  .stat {
+    padding: 10px; background: var(--surface2); border-radius: 8px; text-align: center;
+  }
+  .stat-value { font-size: 20px; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; margin-top: 2px; }
+
+  /* Deliverable */
+  .deliverable-section {
+    flex: 1; overflow-y: auto; padding: 16px;
+  }
+  .deliverable-content {
+    font-size: 13px; line-height: 1.7; white-space: pre-wrap;
+    background: var(--surface2); padding: 14px; border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .deliverable-placeholder {
+    color: var(--text-dim); font-size: 13px; text-align: center;
+    padding: 40px 20px;
+  }
+
+  /* Evaluation badge */
+  .eval-badge {
+    padding: 10px 14px; background: var(--surface2); border-radius: 10px;
+    border: 1px solid var(--border); margin: 8px 16px; font-size: 12px;
+  }
+  .eval-score { font-size: 24px; font-weight: 700; color: var(--accent); }
+  .eval-reason { color: var(--text-dim); margin-top: 4px; }
+
+  /* Quick topics */
+  .quick-topics { padding: 12px 16px; border-top: 1px solid var(--border); }
+  .quick-topic {
+    padding: 6px 10px; margin-bottom: 4px; border-radius: 6px;
+    font-size: 12px; color: var(--text-dim); cursor: pointer;
+    transition: all 0.2s;
+  }
+  .quick-topic:hover { background: var(--surface2); color: var(--text); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <h1>🧠 SES <span>Think Tank</span></h1>
+
+  <div class="mode-selector">
+    <button class="mode-btn active" data-mode="salon">💬 Salon</button>
+    <button class="mode-btn" data-mode="design">🔬 Design</button>
+    <button class="mode-btn" data-mode="sprint">🚀 Sprint</button>
+  </div>
+
+  <input type="text" class="topic-input" id="topicInput" placeholder="Enter a topic or task..." value="Can we build AI that genuinely sits with ambiguity instead of rushing to resolve it?">
+
+  <button class="start-btn" id="startBtn" onclick="startConversation()">Start</button>
+</div>
+
+<!-- LEFT PANEL -->
+<div class="left-panel">
+  <div class="panel-title">Personas</div>
+  <div id="personaList"></div>
+
+  <div class="phase-info" id="phaseInfo" style="display:none;">
+    <div class="phase-name" id="phaseName"></div>
+    <div class="phase-desc" id="phaseDesc"></div>
+    <div class="phase-speakers" id="phaseSpeakers"></div>
+  </div>
+</div>
+
+<!-- CENTER PANEL -->
+<div class="center-panel">
+  <div class="phase-bar" id="phaseBar" style="display:none;"></div>
+  <div class="chat-area" id="chatArea">
+    <div style="text-align:center; color:var(--text-dim); margin:auto;">
+      <div style="font-size:48px; margin-bottom:16px;">🧠</div>
+      <div style="font-size:16px; font-weight:600; margin-bottom:8px;">Think Tank Ready</div>
+      <div style="font-size:13px;">Select personas, pick a mode, and start a conversation.</div>
+    </div>
+  </div>
+</div>
+
+<!-- RIGHT PANEL -->
+<div class="right-panel">
+  <div class="topic-display">
+    <div class="topic-label">Topic</div>
+    <div class="topic-text" id="topicDisplay">Not started</div>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value" id="statTurns">0</div>
+      <div class="stat-label">Turns</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statTime">0s</div>
+      <div class="stat-label">Time</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statSpeakers">0</div>
+      <div class="stat-label">Speakers</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value" id="statPhase">—</div>
+      <div class="stat-label">Phase</div>
+    </div>
+  </div>
+
+  <div class="deliverable-section">
+    <div class="panel-title">Deliverable</div>
+    <div id="deliverableArea">
+      <div class="deliverable-placeholder">
+        <div style="font-size:24px; margin-bottom:8px;">📋</div>
+        The final output will appear here when the conversation completes.
+      </div>
+    </div>
+  </div>
+
+  <div class="quick-topics">
+    <div class="panel-title">Quick Topics</div>
+    <div class="quick-topic" onclick="setTopic(this.textContent)">🔬 Why do reasoning models struggle with emotional presence?</div>
+    <div class="quick-topic" onclick="setTopic(this.textContent)">📊 Design a prompt for the Silence Keeper agent</div>
+    <div class="quick-topic" onclick="setTopic(this.textContent)">🧠 How should AI handle cultural humility in therapy?</div>
+    <div class="quick-topic" onclick="setTopic(this.textContent)">🏗️ Build a system prompt for an Ambiguity Preserver agent</div>
+  </div>
+</div>
+
+<script>
+let ws = null;
+let personas = [];
+let workflows = {};
+let selectedPersonas = ['rook', 'elena', 'kael', 'maya'];
+let workflowMode = 'salon';
+let currentSession = null;
+let turnCount = 0;
+let startTime = 0;
+let timerInterval = null;
+let speakers = new Set();
+let currentPhase = '';
+
+// Load personas and workflows
+async function init() {
+  const [pRes, wRes] = await Promise.all([
+    fetch('/api/personas'),
+    fetch('/api/workflows'),
+  ]);
+  personas = await pRes.json();
+  workflows = await wRes.json();
+  renderPersonas();
+}
+
+function renderPersonas() {
+  const list = document.getElementById('personaList');
+  list.innerHTML = personas.map(p => `
+    <div class="persona-card ${selectedPersonas.includes(p.id) ? 'selected' : ''}"
+         onclick="togglePersona('${p.id}')">
+      <div class="persona-header">
+        <span class="persona-icon">${p.icon}</span>
+        <div>
+          <div class="persona-name">${p.name}</div>
+          <div class="persona-title">${p.title}</div>
+        </div>
+      </div>
+      ${p.background ? `<div style="font-size:11px; color:var(--text-dim); margin-top:6px; line-height:1.5; padding-top:6px; border-top:1px solid var(--border);">${p.background}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function togglePersona(id) {
+  if (selectedPersonas.includes(id)) {
+    selectedPersonas = selectedPersonas.filter(p => p !== id);
+  } else {
+    selectedPersonas.push(id);
+  }
+  renderPersonas();
+}
+
+function setTopic(text) {
+  document.getElementById('topicInput').value = text.replace(/^[^\s]+\s/, '');
+}
+
+// Mode selector
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    workflowMode = btn.dataset.mode;
+  });
+});
+
+// WebSocket
+function connectWS() {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  ws = new WebSocket(`${proto}://${location.host}/ws/${Date.now()}`);
+
+  ws.onopen = () => console.log('Connected');
+  ws.onclose = () => setTimeout(connectWS, 3000);
+  ws.onerror = (e) => console.error('WS error:', e);
+
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    switch (data.type) {
+      case 'message':
+        addMessage(data.message);
+        break;
+      case 'phase_change':
+        showPhase(data);
+        break;
+      case 'evaluation':
+        showEvaluation(data);
+        break;
+      case 'deliverable':
+        showDeliverable(data);
+        break;
+      case 'session_complete':
+        finishConversation(data);
+        break;
+    }
+  };
+}
+
+function startConversation() {
+  const topic = document.getElementById('topicInput').value;
+  if (!topic) return;
+
+  // Reset
+  turnCount = 0;
+  speakers.clear();
+  currentPhase = '';
+  startTime = Date.now();
+  document.getElementById('chatArea').innerHTML = '';
+  document.getElementById('topicDisplay').textContent = topic;
+  document.getElementById('deliverableArea').innerHTML = `
+    <div class="deliverable-placeholder">
+      <div style="font-size:24px; margin-bottom:8px;">⏳</div>
+      In progress...
+    </div>`;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('statTurns').textContent = '0';
+  document.getElementById('statSpeakers').textContent = '0';
+  document.getElementById('statPhase').textContent = '—';
+
+  // Timer
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const s = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('statTime').textContent = s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
+  }, 1000);
+
+  // Show phase bar for structured modes
+  if (workflowMode !== 'salon' && workflows[workflowMode]) {
+    renderPhaseBar(workflows[workflowMode].phases);
+  }
+
+  // Start
+  ws.send(JSON.stringify({
+    type: 'start_conversation',
+    session_id: 'web_' + Date.now(),
+    topic: topic,
+    personas: selectedPersonas,
+    max_turns: workflows[workflowMode]?.max_turns || 30,
+    workflow_mode: workflowMode,
+  }));
+}
+
+function addMessage(msg) {
+  const chat = document.getElementById('chatArea');
+  turnCount++;
+  speakers.add(msg.persona_name);
+
+  document.getElementById('statTurns').textContent = turnCount;
+  document.getElementById('statSpeakers').textContent = speakers.size;
+
+  const persona = personas.find(p => p.id === msg.persona_id) || {};
+  const isRight = ['rook', 'maya'].includes(msg.persona_id);
+
+  const div = document.createElement('div');
+  div.className = `message ${isRight ? 'right' : 'left'}`;
+  div.innerHTML = `
+    <div class="msg-avatar" style="background:${msg.color}22; border: 1px solid ${msg.color}44;">
+      ${msg.icon}
+    </div>
+    <div>
+      <div class="msg-bubble">${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+      <div class="msg-meta">
+        <span style="color:${msg.color}; font-weight:600;">${msg.persona_name}</span>
+        ${msg.phase ? `<span class="msg-phase-tag">${msg.phase}</span>` : ''}
+        <span>${timeAgo(msg.timestamp * 1000)}</span>
+      </div>
+    </div>
+  `;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showPhase(data) {
+  currentPhase = data.phase;
+  document.getElementById('statPhase').textContent = data.icon;
+
+  // Update phase bar
+  document.querySelectorAll('.phase-step').forEach(step => {
+    const stepPhase = step.dataset.phase;
+    if (stepPhase === data.phase) {
+      step.classList.add('active');
+      step.classList.remove('done');
+    } else if (step.classList.contains('active') && stepPhase !== data.phase) {
+      step.classList.remove('active');
+      step.classList.add('done');
+    }
+  });
+
+  // Phase info panel
+  const info = document.getElementById('phaseInfo');
+  info.style.display = 'block';
+  document.getElementById('phaseName').textContent = `${data.icon} ${data.name}`;
+  document.getElementById('phaseDesc').textContent = data.description;
+  const speakerNames = data.speakers.map(id => {
+    const p = personas.find(pp => pp.id === id);
+    return p ? `${p.icon} ${p.name}` : id;
+  });
+  document.getElementById('phaseSpeakers').textContent = `Speakers: ${speakerNames.join(', ')}`;
+}
+
+function renderPhaseBar(phases) {
+  const bar = document.getElementById('phaseBar');
+  bar.style.display = 'flex';
+  bar.innerHTML = phases.map((p, i) => `
+    ${i > 0 ? '<span class="phase-arrow">→</span>' : ''}
+    <div class="phase-step" data-phase="${p.id}">
+      <span>${p.icon}</span>
+      <span>${p.name}</span>
+    </div>
+  `).join('');
+}
+
+function showEvaluation(data) {
+  const chat = document.getElementById('chatArea');
+  const ev = data.evaluation;
+  const div = document.createElement('div');
+  div.className = 'eval-badge';
+  div.innerHTML = `
+    <div style="display:flex; align-items:center; gap:12px;">
+      <div class="eval-score">${ev.quality_score}/10</div>
+      <div>
+        <div style="font-weight:600; margin-bottom:2px;">📊 Evaluation (Turn ${data.turn})</div>
+        <div class="eval-reason">${ev.reason || ''}</div>
+        <div style="margin-top:4px; color:${ev.should_continue ? '#22c55e' : '#ef4444'};">
+          ${ev.should_continue ? '▶ Continuing...' : '⏹ Conversation ended'}
+        </div>
+      </div>
+    </div>
+  `;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function showDeliverable(data) {
+  const area = document.getElementById('deliverableArea');
+  area.innerHTML = `
+    <div class="panel-title">${data.phase === 'finalize' ? '✅ Final Deliverable' : '📝 Draft Output'}</div>
+    <div class="deliverable-content">${escapeHtml(data.content)}</div>
+    <div style="margin-top:8px; font-size:11px; color:var(--text-dim);">
+      By ${data.author} · ${data.phase} phase
+    </div>
+  `;
+}
+
+function finishConversation(data) {
+  clearInterval(timerInterval);
+  document.getElementById('startBtn').disabled = false;
+
+  const chat = document.getElementById('chatArea');
+  const div = document.createElement('div');
+  div.style.cssText = 'text-align:center; padding:20px; color:var(--text-dim); font-size:13px;';
+  div.innerHTML = `
+    <div style="font-size:24px; margin-bottom:8px;">✅</div>
+    <div style="font-weight:600;">Conversation Complete</div>
+    <div>${data.total_turns} turns · ${Math.round(data.total_time)}s</div>
+  `;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+
+  // Mark all phases done
+  document.querySelectorAll('.phase-step').forEach(s => {
+    s.classList.remove('active');
+    s.classList.add('done');
+  });
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function timeAgo(ts) {
+  const diff = (Date.now() - ts) / 1000;
+  if (diff < 5) return 'now';
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  return `${Math.floor(diff/60)}m ago`;
+}
+
+// Init
+init();
+connectWS();
+</script>
+</body>
+</html>

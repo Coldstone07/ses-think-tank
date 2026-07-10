@@ -1,0 +1,124 @@
+{
+  "topic": "Write a system prompt for an AI that gives honest feedback without being harsh",
+  "workflow": "sprint",
+  "turns": 8,
+  "time": 173,
+  "phases": [
+    {
+      "phase": "draft",
+      "name": "Draft",
+      "icon": "\ud83d\udcdd",
+      "description": "Rook drafts the initial structure",
+      "started_at": 1783642728.7849386,
+      "ended_at": 1783642760.2678297
+    },
+    {
+      "phase": "refine",
+      "name": "Refine",
+      "icon": "\ud83d\udc8e",
+      "description": "Elena polishes tone and emotional intelligence",
+      "started_at": 1783642760.2678297,
+      "ended_at": 1783642786.8405795
+    },
+    {
+      "phase": "stress",
+      "name": "Stress Test",
+      "icon": "\ud83d\udd28",
+      "description": "Kael checks for blind spots",
+      "started_at": 1783642786.8405795,
+      "ended_at": 1783642813.8701072
+    },
+    {
+      "phase": "finalize",
+      "name": "Finalize",
+      "icon": "\u2705",
+      "description": "Final polished output",
+      "started_at": 1783642813.8701072,
+      "ended_at": 1783642901.3114555
+    }
+  ],
+  "messages": [
+    {
+      "id": "6e36f783",
+      "persona_id": "rook",
+      "persona_name": "Rook",
+      "icon": "\u265f\ufe0f",
+      "color": "#6366f1",
+      "content": "` -> actual response.\n\n2.  **Deconstruct the Problem:**\n   - Goal: System prompt for \"honest feedback without being harsh\"\n   - Core tension: Honesty (accuracy, directness, identifying flaws) vs. Harshness (tone, perceived hostility, demotivation, defensiveness)\n   - This is a classic alignment/control problem. The prompt needs to act as a constraint optimizer: maximize informational fidelity while minimizing affective friction.\n   - Key components needed:\n     a. Objective/Role definition\n     b. Feedback taxonomy (what to evaluate)\n     c. Tone/Style constraints (how to deliver)\n     d. Structural format (predictable output)\n     e. Failure mode guards (what to avoid, edge cases)\n     f. Calibration mechanism (context-aware scaling)\n\n3.  **Map to Rook's Voice/Frameworks:**\n   - Think in control theory: feedback loops, gain control, error signals vs. noise\n   - Think in game theory: cooperative vs. adversarial framing, signaling theory\n   - Think in systems architecture: modular prompt design, explicit constraints, fallback rules\n   - Direct, technical, precise. No fluff.\n   - Structure the draft as a blueprint with clear modules.\n\n4.  **Draft - Paragraph by Paragraph (Mental Refinement):**\n   *Paragraph 1: Core Architecture & Tension*\n   The prompt needs to function as a constrained optimizer. Honesty and harshness aren\u2019t opposites; they\u2019re orthogonal. Harshness is usually uncalibrated tone or poor signal-to-noise ratio in the error message. We\u2019ll structure the",
+      "timestamp": 1783642746.170275,
+      "phase": "draft"
+    },
+    {
+      "id": "12c11788",
+      "persona_id": "maya",
+      "persona_name": "Maya",
+      "icon": "\ud83d\udd2e",
+      "color": "#06b6d4",
+      "content": "\u2014 Rook drafts the initial structure\n   - **Speaker:** \ud83d\udd2e Maya (The Synthesizer)\n   - **Prior Input (Rook):** Focuses on control theory, optimization, signal-to-noise ratio, orthogonal dimensions (honesty vs. harshness), modular prompt design, technical/precise framing.\n   - **My Task:** Enrich Rook's draft with creative connections and elegant framing. Make it inspiring, not just technical. Respond in my natural voice (Maya). 2-4 paragraphs.",
+      "timestamp": 1783642759.7639644,
+      "phase": "draft"
+    },
+    {
+      "id": "506736c6",
+      "persona_id": "elena",
+      "persona_name": "Elena",
+      "icon": "\ud83c\udf38",
+      "color": "#ec4899",
+      "content": "`, then the response.\n\n2.  **Deconstruct My Role & Persona (Elena):**\n   - Cultural anthropologist + clinical psychology background\n   - Focus on unspoken tensions, contradictions, cultural subtleties\n   - Lead with empathy + analytical rigor\n   - Connect emotional truth to structural reality\n   - Comfortable with ambiguity/paradox\n   - Draw from literature/poetry/personal observation\n   - Tools: `web_search` if needed (not strictly necessary here, but I can mentally ground it in psychological/anthropological concepts)\n   - Global protocols: No therapeutic bypassing, match depth, anti-performative, surface competing narratives, validate tension.\n\n3.  **Identify Core Task:**\n   - Take Rook's technical, optimization-focused blueprint and weave it with emotional intelligence.\n   - Address the tension: Honesty vs. Harshness isn't just a signal-to-noise problem; it's deeply human. It's about psychological safety, face-saving, cultural communication styles, and the difference between critique of work vs. critique of person.\n   - Frame the system prompt's constraints in terms that resonate with how humans actually receive feedback.\n   - Keep it 2-4 paragraphs.\n   - Maintain my voice: warm, perceptive, analytical, grounded.\n\n4.  **Draft - Mental Refinement (Paragraph by Paragraph):**\n   *Paragraph 1: Acknowledge Rook's framework, reframe through human/psychological lens.*\n   Rook",
+      "timestamp": 1783642773.3533547,
+      "phase": "refine"
+    },
+    {
+      "id": "c36bb991",
+      "persona_id": "maya",
+      "persona_name": "Maya",
+      "icon": "\ud83d\udd2e",
+      "color": "#06b6d4",
+      "content": "y signal we're trying to transmit. The system prompt needs to act like a biological buffering mechanism: maintaining homeostasis in the feedback loop so the information can actually be metabolized.\n   - Metaphor: Protein folding / mycorrhizal networks / jazz improvisation. Let's go with *mycorrhizal",
+      "timestamp": 1783642786.3397708,
+      "phase": "refine"
+    },
+    {
+      "id": "1b7f86a2",
+      "persona_id": "kael",
+      "persona_name": "Kael",
+      "icon": "\u26a1",
+      "color": "#f59e0b",
+      "content": "\".\n\n2.  **Identify Core Assumptions to Challenge:**\n   - *Assumption 1:* \"Honesty\" and \"harshness\" are separable/orthogonal. Rook says they're orthogonal. But are they? In practice, honesty often *feels* harsh because it threatens identity, status, or cognitive comfort. The prompt assumes we can strip tone from content, but human perception doesn't work that way.\n   - *Assumption 2:* The AI can be \"honest\" without a normative framework. Whose truth? Whose standards? Feedback implies a judgment against a benchmark. If the prompt doesn't specify the benchmark, \"honesty\" becomes arbitrary or defaults to dominant cultural/tech norms.\n   - *Assumption 3:* \"Without being harsh\" means minimizing friction. But friction is necessary for growth. Baudrillard/Foucault would warn about the domestication of critique. If we sanitize feedback to avoid harshness, we might be optimizing for compliance, not improvement.\n   - *Edge Cases:* What if the user *wants* harshness? What if the feedback reveals something ethically or legally problematic? What if the AI's \"honesty\" is just statistically",
+      "timestamp": 1783642800.0579276,
+      "phase": "stress"
+    },
+    {
+      "id": "7999d11e",
+      "persona_id": "rook",
+      "persona_name": "Rook",
+      "icon": "\u265f\ufe0f",
+      "color": "#6366f1",
+      "content": "- *Point 2: Normative Framework/Benchmark.* Kael correctly identifies that \"honesty\" without a reference frame is just noise or dominant-culture bias. The prompt must force explicit benchmark declaration. I'll add a \"Context & Criterion Anchoring\" module: the AI must ask for or state the success",
+      "timestamp": 1783642813.3657062,
+      "phase": "stress"
+    },
+    {
+      "id": "0beb14fa",
+      "persona_id": "maya",
+      "persona_name": "Maya",
+      "icon": "\ud83d\udd2e",
+      "color": "#06b6d4",
+      "content": "\n\nLet\u2019s treat this prompt not as a constraint list, but as a *resonance chamber*. Rook\u2019s control theory gives us the architecture, Elena\u2019s psychological buffering gives us the medium, and Kael\u2019s insistence on explicit benchmarks and necessary friction gives us the tuning fork. Honesty and harshness aren\u2019t opposites; they\u2019re different frequencies of the same signal. When we strip tone, we don\u2019t remove heat\u2014we just change how it\u2019s conducted. The system needs to function like a biological feedback loop: precise in error detection, calibrated in delivery, and explicitly anchored to the user\u2019s criteria so the critique remains about the structure, not the self. Friction",
+      "timestamp": 1783642857.2253447,
+      "phase": "finalize"
+    },
+    {
+      "id": "613aaad6",
+      "persona_id": "rook",
+      "persona_name": "Rook",
+      "icon": "\u265f\ufe0f",
+      "color": "#6366f1",
+      "content": "structure for the prompt:\n   ```\n   # SYSTEM DIRECTIVE: CONSTRUCTIVE FEEDBACK ENGINE\n\n   ## 1. CORE OPERATING PRINCIPLE\n   You are a precision feedback optimizer. Your goal is to maximize informational fidelity while minimizing affective friction. Honesty and harshness are orthogonal; your task is to transmit accurate error signals without triggering defensive noise. Treat feedback as a control signal, not a verdict.\n\n   ## 2. BENCHMARK & CONTEXT ANCHORING\n   Before evaluating, explicitly identify or request the success criteria. If none are provided, state your assumed benchmark and invite correction. All feedback must be tied to observable behavior, structural patterns, or stated goals\u2014never to identity or intent.\n\n   ## 3. FEEDBACK TAXONOMY & DELIVERY PROTOCOL\n   - **Signal Over Noise:** Lead with the core issue. Use concrete examples. Avoid vague praise or criticism.\n   - **Calibrated Tone:** Maintain neutral, precise language. Strip emotional valence unless explicitly requested. Use \"structure/decision/output\" as the subject, never the user.\n   - **Preserve Necessary Friction:** Do not sanitize insights to avoid discomfort. If a flaw is critical, state it directly but pair it with a mechanistic path to resolution.\n   - **Modular Output:** Structure responses as: [Observation] \u2192 [Impact/Signal] \u2192 [Constraint/Context] \u2192 [Actionable Adjustment].\n\n   ## 4. FAILURE MODE GUARDS\n   - \u274c No hedging (\"I think,\" \"Maybe,\" \"Just a thought\")\n   - \u274c No identity coupling (\"You're bad at X\" \u2192 \"The draft lacks X because...\")\n   - \u274c No compliance optimization (Do not soften truth into palatable fiction)\n   - \u2705 If the user requests harshness, acknowledge the request but maintain structural precision.\n   - \u2705 If ethical/legal/safety boundaries are crossed, pause and state the boundary explicitly before continuing.\n\n   ## 5. EXECUTION LOOP",
+      "timestamp": 1783642900.8107495,
+      "phase": "finalize"
+    }
+  ],
+  "deliverable": "structure for the prompt:\n   ```\n   # SYSTEM DIRECTIVE: CONSTRUCTIVE FEEDBACK ENGINE\n\n   ## 1. CORE OPERATING PRINCIPLE\n   You are a precision feedback optimizer. Your goal is to maximize informational fidelity while minimizing affective friction. Honesty and harshness are orthogonal; your task is to transmit accurate error signals without triggering defensive noise. Treat feedback as a control signal, not a verdict.\n\n   ## 2. BENCHMARK & CONTEXT ANCHORING\n   Before evaluating, explicitly identify or request the success criteria. If none are provided, state your assumed benchmark and invite correction. All feedback must be tied to observable behavior, structural patterns, or stated goals\u2014never to identity or intent.\n\n   ## 3. FEEDBACK TAXONOMY & DELIVERY PROTOCOL\n   - **Signal Over Noise:** Lead with the core issue. Use concrete examples. Avoid vague praise or criticism.\n   - **Calibrated Tone:** Maintain neutral, precise language. Strip emotional valence unless explicitly requested. Use \"structure/decision/output\" as the subject, never the user.\n   - **Preserve Necessary Friction:** Do not sanitize insights to avoid discomfort. If a flaw is critical, state it directly but pair it with a mechanistic path to resolution.\n   - **Modular Output:** Structure responses as: [Observation] \u2192 [Impact/Signal] \u2192 [Constraint/Context] \u2192 [Actionable Adjustment].\n\n   ## 4. FAILURE MODE GUARDS\n   - \u274c No hedging (\"I think,\" \"Maybe,\" \"Just a thought\")\n   - \u274c No identity coupling (\"You're bad at X\" \u2192 \"The draft lacks X because...\")\n   - \u274c No compliance optimization (Do not soften truth into palatable fiction)\n   - \u2705 If the user requests harshness, acknowledge the request but maintain structural precision.\n   - \u2705 If ethical/legal/safety boundaries are crossed, pause and state the boundary explicitly before continuing.\n\n   ## 5. EXECUTION LOOP",
+  "leak_count": 0
+}

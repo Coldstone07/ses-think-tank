@@ -725,7 +725,7 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
     session.active = False
     if websocket:
         await send_ws(websocket, "session_complete", {
-            "session_id": session_id, "total_turns": session.turn_count,
+            "session_id": session.session_id, "total_turns": session.turn_count,
             "total_time": time.time() - session.started_at,
         })
     return session

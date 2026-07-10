@@ -456,7 +456,7 @@ function addMessage(msg) {
       ${msg.icon}
     </div>
     <div>
-      <div class="msg-bubble">${escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+      <div class="msg-bubble">${renderMarkdown(msg.content)}</div>
       <div class="msg-meta">
         <span style="color:${msg.color}; font-weight:600;">${msg.persona_name}</span>
         ${msg.phase ? `<span class="msg-phase-tag">${msg.phase}</span>` : ''}
@@ -533,7 +533,7 @@ function showDeliverable(data) {
   const area = document.getElementById('deliverableArea');
   area.innerHTML = `
     <div class="panel-title">${data.phase === 'finalize' ? '✅ Final Deliverable' : '📝 Draft Output'}</div>
-    <div class="deliverable-content">${escapeHtml(data.content)}</div>
+    <div class="deliverable-content">${renderMarkdown(data.content)}</div>
     <div style="margin-top:8px; font-size:11px; color:var(--text-dim);">
       By ${data.author} · ${data.phase} phase
     </div>
@@ -566,6 +566,41 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Simple markdown renderer
+function renderMarkdown(text) {
+  let html = escapeHtml(text);
+
+  // Code blocks (```)
+  html = html.replace(/```([\s\S]*?)```/g, '<pre style="background:var(--bg);padding:10px;border-radius:6px;overflow-x:auto;margin:8px 0;font-size:12px;border:1px solid var(--border);"><code>$1</code></pre>');
+
+  // Inline code (`)
+  html = html.replace(/`([^`]+)`/g, '<code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:12px;border:1px solid var(--border);">$1</code>');
+
+  // Bold (**text**)
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  // Italic (*text*)
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+
+  // Strikethrough (~~text~~)
+  html = html.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+
+  // Headers (## text)
+  html = html.replace(/^## (.+)$/gm, '<h3 style="margin:12px 0 6px;font-size:15px;color:var(--accent);">$1</h3>');
+  html = html.replace(/^### (.+)$/gm, '<h4 style="margin:10px 0 4px;font-size:13px;color:var(--text);">$1</h4>');
+
+  // Blockquotes (> text)
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote style="border-left:3px solid var(--accent);padding-left:12px;margin:8px 0;color:var(--text-dim);font-style:italic;">$1</blockquote>');
+
+  // Horizontal rules (---)
+  html = html.replace(/^---$/gm, '<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;">');
+
+  // Line breaks
+  html = html.replace(/\n/g, '<br>');
+
+  return html;
 }
 
 function timeAgo(ts) {

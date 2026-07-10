@@ -436,15 +436,30 @@ Be honest — if the conversation is circling, repeating, or has covered the top
     conclusion_signals = lower.count("wrap up") + lower.count("summarize") + lower.count("in conclusion")
     short_responses = sum(1 for m in messages[-6:] if len(m.content) < 100)
 
+    # Check for content diversity (unique ideas vs repetition)
+    unique_words = set()
+    for m in messages[-4:]:
+        unique_words.update(m.content.lower().split())
+    diversity_ratio = len(unique_words) / max(1, sum(len(m.content.split()) for m in messages[-4:]))
+
+    # More realistic end conditions
     should_end = (
-        repeat_count > 8 or agreement_signals > 6 or
-        conclusion_signals > 0 or short_responses > 3
+        repeat_count > 5 or agreement_signals > 4 or
+        conclusion_signals > 0 or short_responses > 2 or
+        diversity_ratio < 0.4  # Low diversity = repeating same ideas
     )
+
+    # Dynamic quality score based on actual content
+    quality = 5  # baseline
+    quality += min(3, len(unique_words) // 30)  # Bonus for diverse vocabulary
+    quality -= min(3, repeat_count // 2)  # Penalty for repetition
+    quality += 1 if diversity_ratio > 0.6 else 0  # Bonus for high diversity
+    quality = max(1, min(10, quality))
 
     return {
         "should_continue": not should_end,
         "reason": "Conversation converging" if should_end else "Still productive",
-        "quality_score": max(1, 7 - repeat_count // 3),
+        "quality_score": quality,
         "new_directions": [],
     }
 

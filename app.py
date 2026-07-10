@@ -331,26 +331,38 @@ WORKFLOWS = {
 
 def call_llm(messages: List[Dict], model_id: str = MODEL_ID,
              temperature: float = 0.7, max_tokens: int = 1024) -> str:
-    """Call LM Studio (local Qwen 3.6)."""
-    resp = requests.post(
-        f"{LM_STUDIO_URL}/chat/completions",
-        json={
-            "model": model_id,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        },
-        timeout=180,
-    )
-    resp.raise_for_status()
-    msg = resp.json()["choices"][0]["message"]
-    reasoning = msg.get("reasoning_content", "")
-    content = msg.get("content", "")
-    if content:
-        return content
-    if reasoning:
-        content = extract_from_reasoning(reasoning)
-    return content
+    """Call LM Studio (local Qwen 3.6) with retry on timeout."""
+    import time as _time
+
+    for attempt in range(3):
+        try:
+            resp = requests.post(
+                f"{LM_STUDIO_URL}/chat/completions",
+                json={
+                    "model": model_id,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                },
+                timeout=300,
+            )
+            resp.raise_for_status()
+            msg = resp.json()["choices"][0]["message"]
+            reasoning = msg.get("reasoning_content", "")
+            content = msg.get("content", "")
+            if content:
+                return content
+            if reasoning:
+                content = extract_from_reasoning(reasoning)
+            return content
+        except requests.exceptions.ReadTimeout:
+            print(f"  ⏳ LM Studio timeout (attempt {attempt+1}/3), retrying...")
+            _time.sleep(5)
+        except Exception as e:
+            print(f"  ❌ LM Studio error: {e}")
+            raise
+
+    raise RuntimeError("LM Studio failed after 3 retries")
 
 def call_gemini(messages: List[Dict], model_id: str = "gemini-2.5-flash",
                 temperature: float = 0.7, max_tokens: int = 1024) -> str:

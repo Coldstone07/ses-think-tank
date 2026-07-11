@@ -28,6 +28,15 @@ import yaml
 
 def load_items():
     items = []
+    # Items are in subdirectories: emotional/, social/, spiritual/
+    for subdir in ITEMS_DIR.iterdir():
+        if subdir.is_dir():
+            for f in sorted(subdir.glob("*.yaml")):
+                with open(f) as fh:
+                    data = yaml.safe_load(fh)
+                data['_source'] = f.name
+                items.append(data)
+    # Also check for flat yaml files in root
     for f in sorted(ITEMS_DIR.glob("*.yaml")):
         with open(f) as fh:
             data = yaml.safe_load(fh)

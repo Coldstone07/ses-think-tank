@@ -881,11 +881,14 @@ async def index():
 async def get_personas():
     return PERSONAS
 
+from fastapi import Request as FastAPIRequest
+
 @app.post("/api/chat")
-async def chat_with_persona(request: dict):
+async def chat_with_persona(request: FastAPIRequest):
     """Chat with a single persona directly."""
-    persona_id = request.get("persona_id")
-    message = request.get("message")
+    body = await request.json()
+    persona_id = body.get("persona_id")
+    message = body.get("message")
     
     persona = next((p for p in PERSONAS if p['id'] == persona_id), None)
     if not persona:

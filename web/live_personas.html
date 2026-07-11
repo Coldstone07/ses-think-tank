@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Think Tank — Live Personas</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#0a0a0f;--surface:#12121a;--border:#1e1e2e;--text:#e0e0e8;
+    --text-dim:#6b6b80;--accent:#6366f1;--green:#10b981;--amber:#f59e0b;
+    --pink:#ec4899;--cyan:#06b6d4;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;height:100vh;display:flex;flex-direction:column}
+  
+  /* Header */
+  .header{background:var(--surface);border-bottom:1px solid var(--border);padding:16px 24px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--accent),var(--pink));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .header .subtitle{font-size:12px;color:var(--text-dim)}
+  
+  /* Main Layout */
+  .main{flex:1;display:flex;overflow:hidden}
+  
+  /* Persona Panel */
+  .persona-panel{width:280px;background:var(--surface);border-right:1px solid var(--border);padding:16px;overflow-y:auto}
+  .persona-card{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:12px;cursor:pointer;transition:all .2s}
+  .persona-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .persona-card.active{border-color:var(--accent);box-shadow:0 0 20px rgba(99,102,241,.2)}
+  .persona-header{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .persona-icon{font-size:24px}
+  .persona-name{font-weight:600;font-size:14px}
+  .persona-title{font-size:11px;color:var(--text-dim)}
+  .persona-bio{font-size:12px;color:var(--text-dim);line-height:1.5;margin-top:8px}
+  .persona-stats{display:flex;gap:8px;margin-top:8px}
+  .stat{background:var(--surface);padding:4px 8px;border-radius:6px;font-size:10px;color:var(--text-dim)}
+  
+  /* Chat Area */
+  .chat-area{flex:1;display:flex;flex-direction:column}
+  .chat-messages{flex:1;overflow-y:auto;padding:24px}
+  .message{margin-bottom:20px;animation:fadeIn .3s ease}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  .msg-header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .msg-icon{font-size:18px}
+  .msg-name{font-weight:600;font-size:13px}
+  .msg-time{font-size:11px;color:var(--text-dim)}
+  .msg-bubble{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;line-height:1.6;font-size:14px}
+  .msg-bubble strong{color:var(--accent)}
+  .msg-bubble em{color:var(--pink)}
+  .msg-bubble code{background:var(--bg);padding:2px 6px;border-radius:4px;font-size:12px;border:1px solid var(--border)}
+  .msg-bubble pre{background:var(--bg);padding:12px;border-radius:8px;overflow-x:auto;margin:8px 0;border:1px solid var(--border)}
+  .msg-bubble pre code{background:none;border:none;padding:0}
+  .msg-bubble blockquote{border-left:3px solid var(--accent);padding-left:12px;color:var(--text-dim);font-style:italic;margin:8px 0}
+  .msg-bubble h3{margin:12px 0 6px;font-size:15px;color:var(--accent)}
+  .msg-bubble hr{border:none;border-top:1px solid var(--border);margin:12px 0}
+  
+  /* User message */
+  .msg-user .msg-bubble{background:rgba(99,102,241,.1);border-color:var(--accent)}
+  
+  /* Input Area */
+  .input-area{background:var(--surface);border-top:1px solid var(--border);padding:16px 24px}
+  .input-row{display:flex;gap:12px;align-items:flex-end}
+  .input-box{flex:1;background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:12px 16px;color:var(--text);font-size:14px;resize:none;min-height:48px;max-height:120px;font-family:inherit}
+  .input-box:focus{outline:none;border-color:var(--accent)}
+  .send-btn{background:var(--accent);color:white;border:none;border-radius:12px;width:48px;height:48px;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;transition:all .2s}
+  .send-btn:hover{transform:scale(1.05);box-shadow:0 0 20px rgba(99,102,241,.3)}
+  .send-btn:disabled{opacity:.5;cursor:not-allowed}
+  
+  /* Mode Selector */
+  .mode-row{display:flex;gap:8px;margin-bottom:12px}
+  .mode-btn{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:6px 12px;font-size:12px;color:var(--text-dim);cursor:pointer;transition:all .2s}
+  .mode-btn:hover{border-color:var(--accent)}
+  .mode-btn.active{background:var(--accent);color:white;border-color:var(--accent)}
+  
+  /* Status */
+  .status{font-size:11px;color:var(--text-dim);text-align:center;padding:8px}
+  .status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  .status .dot.online{background:var(--green);box-shadow:0 0 8px var(--green)}
+  .status .dot.offline{background:var(--amber)}
+  
+  /* Scrollbar */
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>🧠 Think Tank — Live Personas</h1>
+    <div class="subtitle">Multi-agent conversation with Rook, Elena, Kael & Maya</div>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Persona Panel -->
+  <div class="persona-panel" id="personaPanel">
+    <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">THE TEAM</div>
+    <!-- Personas injected here -->
+  </div>
+  
+  <!-- Chat Area -->
+  <div class="chat-area">
+    <div class="chat-messages" id="chatMessages">
+      <div class="message">
+        <div class="msg-header">
+          <span class="msg-icon">🤖</span>
+          <span class="msg-name">System</span>
+        </div>
+        <div class="msg-bubble">
+          Welcome to the Think Tank! Send a message and the team will discuss it. 
+          You can also <strong>pick a specific persona</strong> from the left panel to chat with them directly.
+        </div>
+      </div>
+    </div>
+    
+    <div class="status">
+      <span class="dot online"></span> Connected to localhost:8773
+    </div>
+    
+    <div class="input-area">
+      <div class="mode-row">
+        <button class="mode-btn active" data-mode="group">👥 Group</button>
+        <button class="mode-btn" data-mode="rook">♟️ Rook</button>
+        <button class="mode-btn" data-mode="elena">🌸 Elena</button>
+        <button class="mode-btn" data-mode="kael">⚡ Kael</button>
+        <button class="mode-btn" data-mode="maya">🔮 Maya</button>
+      </div>
+      <div class="input-row">
+        <textarea class="input-box" id="userInput" placeholder="Ask the team anything..." rows="1"></textarea>
+        <button class="send-btn" id="sendBtn">➤</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = 'http://localhost:8773';
+let currentMode = 'group';
+let personas = [];
+
+// Load personas
+async function loadPersonas() {
+  const res = await fetch(`${API}/api/personas`);
+  personas = await res.json();
+  renderPersonas();
+}
+
+function renderPersonas() {
+  const panel = document.getElementById('personaPanel');
+  panel.innerHTML = '<div style="font-size:12px;color:var(--text-dim);margin-bottom:12px">THE TEAM</div>';
+  
+  personas.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'persona-card';
+    card.dataset.id = p.id;
+    card.innerHTML = `
+      <div class="persona-header">
+        <span class="persona-icon">${p.icon}</span>
+        <div>
+          <div class="persona-name" style="color:${p.color}">${p.name}</div>
+          <div class="persona-title">${p.title}</div>
+        </div>
+      </div>
+      <div class="persona-bio">${p.system_prompt.split('\n\n')[0].replace('You are ', '')}</div>
+      <div class="persona-stats">
+        <span class="stat" style="border:1px solid ${p.color}40">${p.accent}</span>
+      </div>
+    `;
+    card.onclick = () => {
+      document.querySelectorAll('.persona-card').forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector(`.mode-btn[data-mode="${p.id}"]`).classList.add('active');
+      currentMode = p.id;
+    };
+    panel.appendChild(card);
+  });
+}
+
+// Render markdown
+function renderMarkdown(text) {
+  let html = text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  html = html.replace(/```([\s\S]*?)```/g, '<pre><code>$1</code></pre>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+  html = html.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
+  html = html.replace(/^---$/gm, '<hr>');
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+// Add message to chat
+function addMessage(icon, name, content, isUser = false) {
+  const chat = document.getElementById('chatMessages');
+  const msg = document.createElement('div');
+  msg.className = `message ${isUser ? 'msg-user' : ''}`;
+  msg.innerHTML = `
+    <div class="msg-header">
+      <span class="msg-icon">${icon}</span>
+      <span class="msg-name">${name}</span>
+      <span class="msg-time">${new Date().toLocaleTimeString()}</span>
+    </div>
+    <div class="msg-bubble">${renderMarkdown(content)}</div>
+  `;
+  chat.appendChild(msg);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+// Send message
+async function sendMessage() {
+  const input = document.getElementById('userInput');
+  const btn = document.getElementById('sendBtn');
+  const text = input.value.trim();
+  if (!text) return;
+  
+  input.value = '';
+  btn.disabled = true;
+  addMessage('👤', 'You', text, true);
+  
+  try {
+    // Group mode: use WebSocket for full team discussion
+    if (currentMode === 'group') {
+      await sendGroupMessage(text);
+    } else {
+      // Individual mode: talk to one persona
+      await sendIndividualMessage(text, currentMode);
+    }
+  } catch (e) {
+    addMessage('❌', 'Error', e.message);
+  }
+  btn.disabled = false;
+}
+
+async function sendIndividualMessage(text, personaId) {
+  const persona = personas.find(p => p.id === personaId);
+  if (!persona) return;
+  
+  const res = await fetch(`${API}/api/chat`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      persona_id: personaId,
+      message: text
+    })
+  });
+  const data = await res.json();
+  addMessage(persona.icon, persona.name, data.response);
+}
+
+async function sendGroupMessage(text) {
+  // Start a new conversation session
+  const sessionRes = await fetch(`${API}/api/conversations`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      topic: text,
+      workflow_mode: 'salon',
+      max_turns: 12
+    })
+  });
+  const session = await sessionRes.json();
+  
+  // Connect via WebSocket
+  const ws = new WebSocket(`ws://localhost:8773/ws/conversation/${session.session_id}`);
+  
+  ws.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+    if (data.type === 'message') {
+      const msg = data.message;
+      const persona = personas.find(p => p.id === msg.persona_id);
+      if (persona) {
+        addMessage(persona.icon, persona.name, msg.content);
+      }
+    } else if (data.type === 'deliverable') {
+      addMessage('📋', 'Deliverable', data.content);
+    } else if (data.type === 'session_complete') {
+      addMessage('✅', 'System', 'Discussion complete');
+    }
+  };
+  
+  ws.onclose = () => {
+    addMessage('👋', 'System', 'Session ended');
+  };
+}
+
+// Event listeners
+document.getElementById('sendBtn').onclick = sendMessage;
+document.getElementById('userInput').onkeydown = (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+};
+
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentMode = btn.dataset.mode;
+  };
+});
+
+// Init
+loadPersonas();
+</script>
+</body>
+</html>

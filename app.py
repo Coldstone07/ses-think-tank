@@ -881,6 +881,30 @@ async def index():
 async def get_personas():
     return PERSONAS
 
+@app.post("/api/chat")
+async def chat_with_persona(request: dict):
+    """Chat with a single persona directly."""
+    persona_id = request.get("persona_id")
+    message = request.get("message")
+    
+    persona = next((p for p in PERSONAS if p['id'] == persona_id), None)
+    if not persona:
+        return {"error": f"Unknown persona: {persona_id}"}
+    
+    messages = [
+        {"role": "system", "content": persona["system_prompt"]},
+        {"role": "user", "content": message},
+    ]
+    
+    response = call_llm(messages, temperature=0.85, max_tokens=1024)
+    
+    return {
+        "persona_id": persona_id,
+        "persona_name": persona["name"],
+        "icon": persona["icon"],
+        "response": response,
+    }
+
 @app.get("/api/workflows")
 async def get_workflows():
     return WORKFLOWS

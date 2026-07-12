@@ -695,6 +695,77 @@ def call_llm(messages: List[Dict], model_id: str = MODEL_ID,
 
     raise RuntimeError("LM Studio failed after 3 retries")
 
+
+def call_llm_raw(messages: List[Dict], model_id: str = MODEL_ID,
+                 temperature: float = 0.7, max_tokens: int = 1024) -> dict:
+    """Call LM Studio and return raw response (reasoning_content + content).
+    Useful for extracting JSON from reasoning models."""
+    import time as _time
+
+    for attempt in range(3):
+        try:
+            resp = requests.post(
+                f"{LM_STUDIO_URL}/chat/completions",
+                json={
+                    "model": model_id,
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                },
+                timeout=300,
+            )
+            resp.raise_for_status()
+            msg = resp.json()["choices"][0]["message"]
+            return {
+                "reasoning_content": msg.get("reasoning_content", ""),
+                "content": msg.get("content", ""),
+            }
+        except requests.exceptions.ReadTimeout:
+            print(f"  ⏳ LM Studio timeout (attempt {attempt+1}/3), retrying...")
+            _time.sleep(5)
+        except Exception as e:
+            print(f"  ❌ LM Studio error: {e}")
+            raise
+
+    raise RuntimeError("LM Studio failed after 3 retries")
+
+
+def extract_json_from_text(text: str) -> Optional[dict]:
+    """Extract JSON from text (handles reasoning model output)."""
+    # Try direct parse first
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # Try to find JSON object in the text
+    import re
+    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+    if json_match:
+        try:
+            return json.loads(json_match.group())
+        except json.JSONDecodeError:
+            pass
+
+    # Try nested JSON
+    depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == '{':
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0 and start is not None:
+                try:
+                    return json.loads(text[start:i+1])
+                except json.JSONDecodeError:
+                    start = None
+                    depth = 0
+
+    return None
+
 def call_gemini(messages: List[Dict], model_id: str = "gemini-2.5-flash",
                 temperature: float = 0.7, max_tokens: int = 1024) -> str:
     """Call Gemini API (Google AI Studio) directly — no SDK needed."""

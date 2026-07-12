@@ -912,7 +912,7 @@ def web_search(query: str) -> str:
         ext = TextExtractor()
         ext.feed(resp.text)
         return "\n".join(ext.texts[:5])
-    except:
+    except Exception:
         return ""
 
 
@@ -1313,7 +1313,7 @@ async def get_items(pillar: str = "", limit: int = 50):
                         "dimension": raw.get("dimension", ""), "level": raw.get("level", 1),
                         "situation": raw.get("situation", ""),
                     })
-            except:
+            except Exception:
                 continue
     return items[:limit]
 

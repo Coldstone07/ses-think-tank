@@ -10,7 +10,8 @@ import os
 import re
 from datetime import datetime
 
-sys.path.insert(0, '/c/Users/jatin/Desktop/ses-think-tank')
+SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, SCRIPT_DIR)
 import importlib
 import app as app_mod
 importlib.reload(app_mod)
@@ -25,24 +26,33 @@ def get_persona_name(persona_id: str) -> str:
     return next(p for p in PERSONAS if p["id"] == persona_id)["name"]
 
 async def grade_output(prompt: str, response: str) -> dict:
-    """Grade a response — returns clean JSON."""
-    grading_prompt = f"""Evaluate this response. Return ONLY valid JSON.
+    """Grade a response — no example JSON to avoid echo."""
+    grading_prompt = f"""Evaluate this response on a 1-10 scale for each dimension.
 
 PROMPT: {prompt}
 
-RESPONSE (truncated):
+RESPONSE TO EVALUATE:
 {response[:1500]}
 
-Grade (1-10):
-{{"depth":7,"originality":6,"actionability":8,"balance":7,"clarity":8,"overall":7,"reasoning":"brief"}}
+For each dimension, think about what a 1 means (terrible) and what a 10 means (exceptional), then assign an honest score.
+
+Dimensions:
+- depth: How deeply does it engage with the core problem?
+- originality: Does it offer fresh insights or just common knowledge?
+- actionability: Is it concrete and implementable?
+- balance: Does it consider multiple perspectives and trade-offs?
+- clarity: Is it well-structured and easy to understand?
+- overall: Your final judgment combining all dimensions
+
+Return your scores as JSON: "depth": NUMBER, "originality": NUMBER, "actionability": NUMBER, "balance": NUMBER, "clarity": NUMBER, "overall": NUMBER, "reasoning": "brief explanation"
 """
     messages = [
-        {"role": "system", "content": "You are a grader. Return ONLY valid JSON. No other text."},
+        {"role": "system", "content": "You are an evaluator. Return ONLY valid JSON with your scores. Do not copy any examples — assign your own honest scores."},
         {"role": "user", "content": grading_prompt},
     ]
 
     try:
-        response_text = call_llm(messages, temperature=0.1, max_tokens=256)
+        response_text = call_llm(messages, temperature=0.3, max_tokens=384)
         start = response_text.find("{")
         end = response_text.rfind("}") + 1
         if start >= 0 and end > start:
@@ -51,7 +61,7 @@ Grade (1-10):
                 if key not in grades:
                     grades[key] = 5
             return grades
-    except:
+    except Exception:
         pass
 
     # Fallback: extract numbers
@@ -61,7 +71,7 @@ Grade (1-10):
             grades = {k: int(v) for k, v in numbers}
             grades["overall"] = grades.get("overall", 5)
             return grades
-    except:
+    except Exception:
         pass
 
     return {"error": "parse failed", "raw": response_text[:100]}
@@ -138,7 +148,7 @@ async def main():
         # Solo
         for pid, data in results["solo_baselines"][prompt_id].items():
             grade = data.get("grade", {})
-            if "error" not in grade:
+            if "error" not in grade and "overall" in grade and "depth" in grade:
                 print(f"{get_persona_name(pid):<12} {grade['overall']:>8} {grade['depth']:>6} {grade['balance']:>8}")
 
         # Team

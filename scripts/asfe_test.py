@@ -197,12 +197,12 @@ async def grade_output(prompt: str, response: str, grader_persona: str = "rook")
     """Grade a response using a persona as judge."""
     system_prompt = get_persona_system_prompt(grader_persona)
 
-    grading_prompt = f"""You are evaluating the quality of a response to the following prompt:
+    grading_prompt = f"""You are evaluating the quality of a response. Return ONLY valid JSON.
 
 PROMPT: {prompt}
 
 RESPONSE TO EVALUATE:
-{response}
+{response[:2000]}
 
 Grade this response on these dimensions (1-10 scale):
 1. DEPTH — How deeply does it engage with the core problem?
@@ -211,33 +211,38 @@ Grade this response on these dimensions (1-10 scale):
 4. BALANCE — Does it consider multiple perspectives and trade-offs?
 5. CLARITY — Is it well-structured and easy to understand?
 
-Return ONLY a JSON object with this format:
-{{
-  "depth": <1-10>,
-  "originality": <1-10>,
-  "actionability": <1-10>,
-  "balance": <1-10>,
-  "clarity": <1-10>,
-  "overall": <1-10>,
-  "reasoning": "<brief explanation>"
-}}
+Return ONLY a JSON object with this format (no other text):
+{{"depth":7,"originality":6,"actionability":8,"balance":7,"clarity":8,"overall":7,"reasoning":"brief"}}
 """
 
     messages = [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": "You are a grader. Return ONLY valid JSON. No other text."},
         {"role": "user", "content": grading_prompt},
     ]
 
     try:
-        response_text = call_llm(messages, temperature=0.3, max_tokens=512)
+        response_text = call_llm(messages, temperature=0.1, max_tokens=256)
         # Extract JSON from response
         start = response_text.find("{")
         end = response_text.rfind("}") + 1
         if start >= 0 and end > start:
             grades = json.loads(response_text[start:end])
+            # Ensure all fields exist
+            for key in ["depth", "originality", "actionability", "balance", "clarity", "overall"]:
+                if key not in grades:
+                    grades[key] = 5
             return grades
         else:
             return {"error": "Could not parse grading JSON", "raw": response_text[:200]}
+    except json.JSONDecodeError:
+        # Fallback: try to extract numbers
+        import re
+        numbers = re.findall(r'"(\w+)":\s*(\d+)', response_text)
+        if numbers:
+            grades = {k: int(v) for k, v in numbers}
+            grades["overall"] = grades.get("overall", 5)
+            return grades
+        return {"error": "JSON parse failed", "raw": response_text[:200]}
     except Exception as e:
         return {"error": str(e)}
 

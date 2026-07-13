@@ -147,11 +147,11 @@ Think Tank A (Healthcare) ↔ Think Tank B (Policy) ↔ Think Tank C (Tech)
 
 ## Technical Debt
 
-### High Priority
-- [ ] **Fix grading echo issue** — LLM returns example JSON instead of real scores. Root cause: Qwen 3.6 is a reasoning model (all output in `reasoning_content`, not `content`). Solution: add `call_llm_raw()` to get raw response, `extract_json_from_text()` to parse JSON from reasoning. Partial fix applied to `app.py` but `asfe_grade.py` still needs to use it.
-- [ ] Fix Windows port TIME_WAIT issues (SO_REUSEADDR or process manager)
-- [ ] Add proper error handling to WebSocket connections
-- [ ] Add unit tests for persona generation and ASFE metrics
+### High Priority (All Resolved ✅)
+- [x] **Fix grading echo issue** — Added `call_llm_raw()` + `extract_json_from_text()` to `app.py`; updated `asfe_grade.py` to use them. Grading now works with reasoning models.
+- [x] Fix Windows port TIME_WAIT issues — Added `find_free_port()` with `SO_REUSEADDR` and auto-hopping (8773-8783).
+- [x] Add proper error handling to WebSocket connections — Added JSON decode error handling, missing topic validation, conversation error catch, and generic exception handler.
+- [x] Add unit tests for persona generation and ASFE metrics — Created `tests/test_core.py` with 24 tests across 6 classes (personas, workflows, JSON extraction, reasoning extraction, ASFE metrics, integration).
 
 ### Medium Priority
 - [ ] Add rate limiting to API endpoints

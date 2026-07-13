@@ -1344,25 +1344,37 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     try:
         while True:
             data = await websocket.receive_text()
-            msg = json.loads(data)
+            try:
+                msg = json.loads(data)
+            except json.JSONDecodeError:
+                await websocket.send_json({"type": "error", "message": "Invalid JSON"})
+                continue
 
             if msg.get("type") == "start_conversation":
                 session_id = msg.get("session_id")
                 topic = msg.get("topic")
+                if not topic:
+                    await websocket.send_json({"type": "error", "message": "Missing topic"})
+                    continue
                 persona_ids = msg.get("personas", [p["id"] for p in PERSONAS])
                 max_turns = msg.get("max_turns", 20)
                 workflow_mode = msg.get("workflow_mode", "salon")
 
-                session = await run_conversation(
-                    session_id, topic, persona_ids, max_turns, workflow_mode, websocket
-                )
-                active_sessions[session_id] = session
+                try:
+                    session = await run_conversation(
+                        session_id, topic, persona_ids, max_turns, workflow_mode, websocket
+                    )
+                    active_sessions[session_id] = session
+                except Exception as e:
+                    await websocket.send_json({"type": "error", "message": f"Conversation failed: {str(e)}"})
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
 
     except WebSocketDisconnect:
         pass
+    except Exception as e:
+        print(f"❌ WebSocket error for {client_id}: {e}")
     finally:
         active_connections.pop(client_id, None)
 
@@ -1388,6 +1400,22 @@ async def get_items(pillar: str = "", limit: int = 50):
                 continue
     return items[:limit]
 
+def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
+    """Find a free port, auto-hopping to avoid Windows TIME_WAIT conflicts."""
+    import socket
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind(("0.0.0.0", port))
+                return port
+            except OSError:
+                continue
+    raise RuntimeError(f"No free port found in range {start_port}-{start_port + max_attempts}")
+
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8773)
+    port = find_free_port(8773)
+    print(f"🚀 Starting SES Think Tank on port {port}")
+    uvicorn.run(app, host="0.0.0.0", port=port)

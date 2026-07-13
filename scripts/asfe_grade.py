@@ -16,8 +16,9 @@ import importlib
 import app as app_mod
 importlib.reload(app_mod)
 
-call_llm = app_mod.call_llm
 PERSONAS = app_mod.PERSONAS
+call_llm_raw = app_mod.call_llm_raw
+extract_json_from_text = app_mod.extract_json_from_text
 
 def get_persona_system_prompt(persona_id: str) -> str:
     return next(p for p in PERSONAS if p["id"] == persona_id)["system_prompt"]
@@ -26,7 +27,7 @@ def get_persona_name(persona_id: str) -> str:
     return next(p for p in PERSONAS if p["id"] == persona_id)["name"]
 
 async def grade_output(prompt: str, response: str) -> dict:
-    """Grade a response — no example JSON to avoid echo."""
+    """Grade a response — uses raw LLM output to handle reasoning models."""
     grading_prompt = f"""Evaluate this response on a 1-10 scale for each dimension.
 
 PROMPT: {prompt}
@@ -44,7 +45,7 @@ Dimensions:
 - clarity: Is it well-structured and easy to understand?
 - overall: Your final judgment combining all dimensions
 
-Return your scores as JSON: "depth": NUMBER, "originality": NUMBER, "actionability": NUMBER, "balance": NUMBER, "clarity": NUMBER, "overall": NUMBER, "reasoning": "brief explanation"
+Return your scores as JSON: {{ "depth": NUMBER, "originality": NUMBER, "actionability": NUMBER, "balance": NUMBER, "clarity": NUMBER, "overall": NUMBER, "reasoning": "brief explanation" }}
 """
     messages = [
         {"role": "system", "content": "You are an evaluator. Return ONLY valid JSON with your scores. Do not copy any examples — assign your own honest scores."},
@@ -52,29 +53,18 @@ Return your scores as JSON: "depth": NUMBER, "originality": NUMBER, "actionabili
     ]
 
     try:
-        response_text = call_llm(messages, temperature=0.3, max_tokens=384)
-        start = response_text.find("{")
-        end = response_text.rfind("}") + 1
-        if start >= 0 and end > start:
-            grades = json.loads(response_text[start:end])
+        raw = call_llm_raw(messages, temperature=0.3, max_tokens=384)
+        combined = raw.get("content", "") or raw.get("reasoning_content", "")
+        parsed = extract_json_from_text(combined)
+        if parsed and "overall" in parsed:
             for key in ["depth", "originality", "actionability", "balance", "clarity", "overall"]:
-                if key not in grades:
-                    grades[key] = 5
-            return grades
+                if key not in parsed:
+                    parsed[key] = 5
+            return parsed
     except Exception:
         pass
 
-    # Fallback: extract numbers
-    try:
-        numbers = re.findall(r'"(\w+)":\s*(\d+)', response_text)
-        if numbers:
-            grades = {k: int(v) for k, v in numbers}
-            grades["overall"] = grades.get("overall", 5)
-            return grades
-    except Exception:
-        pass
-
-    return {"error": "parse failed", "raw": response_text[:100]}
+    return {"error": "parse failed", "raw": "no valid JSON returned"}
 
 async def main():
     print("🔍 ASFE QUALITY GRADING")

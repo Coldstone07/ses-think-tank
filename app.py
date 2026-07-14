@@ -31,6 +31,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import sqlite3
 import requests
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
@@ -1451,6 +1452,428 @@ async def update_and_emit_metrics(
         )
 
 
+# ─── MULTI-SESSION MEMORY (Phase 3.4) ───────────────────────────────────────────
+
+MEMORY_DB_PATH = BASE_DIR / "memory.db"
+
+
+def init_memory_db():
+    """Initialize SQLite memory database schema."""
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+    cur.executescript("""
+        CREATE TABLE IF NOT EXISTS memory_sessions (
+            session_id TEXT PRIMARY KEY,
+            topic TEXT NOT NULL,
+            workflow_mode TEXT DEFAULT 'salon',
+            started_at REAL,
+            ended_at REAL,
+            turn_count INTEGER DEFAULT 0,
+            deliverable TEXT DEFAULT '',
+            summary TEXT DEFAULT '',
+            persona_ids TEXT DEFAULT '',
+            created_at REAL DEFAULT (julianday('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS memory_pins (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            topic TEXT DEFAULT '',
+            content TEXT DEFAULT '',
+            author TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending',
+            created_at REAL DEFAULT 0,
+            FOREIGN KEY (session_id) REFERENCES memory_sessions(session_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS persona_interactions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            persona_id TEXT NOT NULL,
+            turns_spoken INTEGER DEFAULT 0,
+            partners TEXT DEFAULT '',
+            FOREIGN KEY (session_id) REFERENCES memory_sessions(session_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS cross_references (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL,
+            referenced_session_id TEXT NOT NULL,
+            reference_text TEXT DEFAULT '',
+            created_at REAL DEFAULT 0,
+            FOREIGN KEY (session_id) REFERENCES memory_sessions(session_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_memory_sessions_topic ON memory_sessions(topic);
+        CREATE INDEX IF NOT EXISTS idx_memory_pins_session ON memory_pins(session_id);
+        CREATE INDEX IF NOT EXISTS idx_persona_interactions_session ON persona_interactions(session_id);
+        CREATE INDEX IF NOT EXISTS idx_cross_references_session ON cross_references(session_id);
+    """)
+    conn.commit()
+    conn.close()
+
+
+def populate_memory(session: ConversationSession):
+    """Insert session record, pins, and persona interactions into memory."""
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+
+    persona_ids = ",".join(p["id"] for p in session.personas)
+    topic_words = set(session.topic.lower().split())
+    stop = {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "that",
+        "this",
+        "it",
+        "and",
+        "or",
+        "but",
+        "not",
+    }
+    topic_words -= stop
+    summary = " | ".join(list(topic_words)[:10]) if topic_words else ""
+
+    cur.execute(
+        """
+        INSERT OR REPLACE INTO memory_sessions
+            (session_id, topic, workflow_mode, started_at, ended_at, turn_count,
+             deliverable, summary, persona_ids)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """,
+        (
+            session.session_id,
+            session.topic,
+            session.workflow_mode,
+            session.started_at,
+            time.time(),
+            session.turn_count,
+            session.deliverable[:1000] if session.deliverable else "",
+            summary,
+            persona_ids,
+        ),
+    )
+
+    for pin in session.whiteboard.values():
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO memory_pins
+                (id, session_id, topic, content, author, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+            (
+                pin.id,
+                session.session_id,
+                pin.topic,
+                pin.content,
+                pin.author,
+                pin.status,
+                pin.created_at,
+            ),
+        )
+
+    turn_counts: dict = Counter()
+    for m in session.messages:
+        if m.persona_id != "system":
+            turn_counts[m.persona_id] += 1
+    total_turns = sum(turn_counts.values())
+    if total_turns > 0:
+        active_persona_ids = [p["id"] for p in (session.personas or [])]
+        for pid, count in turn_counts.items():
+            partners_list = [aid for aid in active_persona_ids if aid != pid]
+            cur.execute(
+                """
+                INSERT INTO persona_interactions
+                    (session_id, persona_id, turns_spoken, partners)
+                VALUES (?, ?, ?, ?)
+            """,
+                (
+                    session.session_id,
+                    pid,
+                    count,
+                    ",".join(partners_list),
+                ),
+            )
+
+    conn.commit()
+    conn.close()
+    log.info("Memory populated for session %s", session.session_id)
+
+
+def search_memory_by_topic(topic: str, limit: int = 10) -> list:
+    """Search past sessions by keyword overlap with topic."""
+    query_words = set(t.lower() for t in topic.split() if len(t) > 2)
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT session_id, topic, workflow_mode, started_at, ended_at,
+               turn_count, summary, persona_ids
+        FROM memory_sessions ORDER BY started_at DESC LIMIT ?
+    """,
+        (limit * 3,),
+    )
+    rows = cur.fetchall()
+    conn.close()
+
+    scored = []
+    for row in rows:
+        session_topic = (row[1] or "").lower()
+        summary = (row[6] or "").lower()
+        text = session_topic + " " + summary
+        score = sum(1 for w in query_words if w in text)
+        if score > 0:
+            scored.append(
+                (
+                    score,
+                    {
+                        "session_id": row[0],
+                        "topic": row[1],
+                        "workflow_mode": row[2],
+                        "started_at": row[3],
+                        "ended_at": row[4],
+                        "turn_count": row[5],
+                        "summary": row[6],
+                        "persona_ids": (row[7] or "").split(","),
+                    },
+                )
+            )
+    scored.sort(key=lambda x: -x[0])
+    return [item[1] for item in scored[:limit]]
+
+
+def search_memory_by_persona(persona_id: str, limit: int = 10) -> list:
+    """Find sessions that used a specific persona."""
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT ms.session_id, ms.topic, ms.workflow_mode, ms.started_at,
+               ms.ended_at, ms.turn_count, ms.summary, ms.persona_ids,
+               pi.turns_spoken
+        FROM memory_sessions ms
+        JOIN persona_interactions pi ON ms.session_id = pi.session_id
+        WHERE pi.persona_id = ?
+        ORDER BY ms.started_at DESC
+        LIMIT ?
+    """,
+        (persona_id, limit),
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return [
+        {
+            "session_id": r[0],
+            "topic": r[1],
+            "workflow_mode": r[2],
+            "started_at": r[3],
+            "ended_at": r[4],
+            "turn_count": r[5],
+            "summary": r[6],
+            "persona_ids": (r[7] or "").split(","),
+            "turns_spoken": r[8],
+        }
+        for r in rows
+    ]
+
+
+def get_session_memory(session_id: str) -> Optional[dict]:
+    """Get full session memory record including pins and interactions."""
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT session_id, topic, workflow_mode, started_at, ended_at,
+               turn_count, deliverable, summary, persona_ids
+        FROM memory_sessions WHERE session_id = ?
+    """,
+        (session_id,),
+    )
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    result = {
+        "session_id": row[0],
+        "topic": row[1],
+        "workflow_mode": row[2],
+        "started_at": row[3],
+        "ended_at": row[4],
+        "turn_count": row[5],
+        "deliverable": row[6],
+        "summary": row[7],
+        "persona_ids": (row[8] or "").split(","),
+    }
+
+    cur.execute(
+        """
+        SELECT id, topic, content, author, status, created_at
+        FROM memory_pins WHERE session_id = ? ORDER BY created_at
+    """,
+        (session_id,),
+    )
+    result["pins"] = [
+        {
+            "id": r[0],
+            "topic": r[1],
+            "content": r[2],
+            "author": r[3],
+            "status": r[4],
+            "created_at": r[5],
+        }
+        for r in cur.fetchall()
+    ]
+
+    cur.execute(
+        """
+        SELECT persona_id, turns_spoken, partners
+        FROM persona_interactions WHERE session_id = ?
+    """,
+        (session_id,),
+    )
+    result["interactions"] = [
+        {
+            "persona_id": r[0],
+            "turns_spoken": r[1],
+            "partners": r[2].split(",") if r[2] else [],
+        }
+        for r in cur.fetchall()
+    ]
+
+    conn.close()
+    return result
+
+
+def get_cross_session_insights(topic: str) -> dict:
+    """Get cross-session insights for a topic across all memory."""
+    matches = search_memory_by_topic(topic, limit=20)
+    if not matches:
+        return {"topic": topic, "session_count": 0, "insights": []}
+
+    all_pins = []
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+    for m in matches:
+        cur.execute(
+            """
+            SELECT topic, content, author, status
+            FROM memory_pins WHERE session_id = ? AND status IN ('approved', 'discussed')
+        """,
+            (m["session_id"],),
+        )
+        for r in cur.fetchall():
+            all_pins.append(
+                {
+                    "topic": r[0],
+                    "content": r[1],
+                    "author": r[2],
+                    "status": r[3],
+                }
+            )
+    conn.close()
+
+    persona_freq: Dict[str, int] = Counter()
+    for m in matches:
+        for pid in m["persona_ids"]:
+            persona_freq[pid] += 1
+
+    return {
+        "topic": topic,
+        "session_count": len(matches),
+        "similar_sessions": [
+            {"session_id": m["session_id"], "topic": m["topic"]} for m in matches[:5]
+        ],
+        "key_findings": all_pins[:10],
+        "persona_frequency": dict(persona_freq.most_common(6)),
+    }
+
+
+def recommend_team_from_memory(topic: str) -> dict:
+    """Recommend a team based on past performance for similar topics."""
+    matches = search_memory_by_topic(topic, limit=10)
+    if not matches:
+        return {"recommended_personas": [], "reasoning": "No past sessions found"}
+
+    persona_scores: Dict[str, dict] = {}
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    cur = conn.cursor()
+    for m in matches:
+        for pid in m["persona_ids"]:
+            if not pid:
+                continue
+            if pid not in persona_scores:
+                persona_scores[pid] = {"count": 0, "total_turns": 0, "turns_spoken": []}
+            persona_scores[pid]["count"] += 1
+            persona_scores[pid]["total_turns"] += m["turn_count"]
+            cur.execute(
+                """
+                SELECT turns_spoken FROM persona_interactions
+                WHERE session_id = ? AND persona_id = ?
+            """,
+                (m["session_id"], pid),
+            )
+            row = cur.fetchone()
+            if row:
+                persona_scores[pid]["turns_spoken"].append(row[0])
+    conn.close()
+
+    scored = []
+    for pid, stats in persona_scores.items():
+        avg_turns = (
+            sum(stats["turns_spoken"]) / len(stats["turns_spoken"])
+            if stats["turns_spoken"]
+            else 0
+        )
+        score = stats["count"] + (avg_turns / max(1, stats["total_turns"]))
+        scored.append((score, pid))
+    scored.sort(key=lambda x: -x[0])
+
+    recommended = [pid for _, pid in scored[:4]]
+    top_count = persona_scores[recommended[0]]["count"] if recommended else 0
+    return {
+        "recommended_personas": recommended,
+        "reasoning": f"Recommended from {len(matches)} past sessions on similar topics. "
+        f"Top persona '{recommended[0] if recommended else '?'}' appeared in {top_count} related sessions.",
+    }
+
+
+def get_memory_suggestions(topic: str) -> Optional[dict]:
+    """Check if a new topic matches past sessions and return suggestions."""
+    matches = search_memory_by_topic(topic, limit=3)
+    if not matches:
+        return None
+    return {
+        "type": "memory_suggestion",
+        "match_count": len(matches),
+        "similar_sessions": [
+            {
+                "session_id": m["session_id"],
+                "topic": m["topic"],
+                "turn_count": m["turn_count"],
+            }
+            for m in matches
+        ],
+        "message": f"{len(matches)} similar session{'s' if len(matches) > 1 else ''} found",
+    }
+
+
 # ─── CONVERSATION ENGINE ─────────────────────────────────────────────────────
 
 
@@ -1608,6 +2031,10 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
 
     session.active = False
     save_session_to_disk(session)
+    try:
+        populate_memory(session)
+    except Exception as e:
+        log.warning("Memory population failed for %s: %s", session.session_id, e)
     log.info(
         "Session complete: id=%s turns=%d time=%.1fs workflow=%s",
         session.session_id,
@@ -1778,6 +2205,10 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
 
     session.active = False
     save_session_to_disk(session)
+    try:
+        populate_memory(session)
+    except Exception as e:
+        log.warning("Memory population failed for %s: %s", session.session_id, e)
     log.info(
         "Session complete: id=%s turns=%d time=%.1fs workflow=%s deliverable=%s",
         session.session_id,
@@ -1936,6 +2367,12 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "web")), name="static"
 
 active_connections: Dict[str, WebSocket] = {}
 active_sessions: Dict[str, ConversationSession] = {}
+
+
+@app.on_event("startup")
+async def startup():
+    init_memory_db()
+    load_sessions_from_disk()
 
 
 # ─── RATE LIMITER MIDDLEWARE ──────────────────────────────────────────────
@@ -2317,6 +2754,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         log.warning("Auto-team classification failed: %s", e)
 
                 try:
+                    loop = asyncio.get_event_loop()
+                    suggestion = await loop.run_in_executor(
+                        None, get_memory_suggestions, topic
+                    )
+                    if suggestion:
+                        await websocket.send_json(
+                            {"type": "memory_suggestion", **suggestion}
+                        )
+                except Exception as e:
+                    log.warning("Memory suggestion failed: %s", e)
+
+                try:
                     session = await run_conversation(
                         session_id,
                         topic,
@@ -2438,6 +2887,40 @@ async def get_items(pillar: str = "", limit: int = 50):
     return items[:limit]
 
 
+# ─── MEMORY API ENDPOINTS (Phase 3.4) ─────────────────────────────────────────
+
+
+@app.get("/api/memory/sessions")
+async def memory_search(topic: str = "", persona: str = ""):
+    """Search memory for past sessions by topic or persona."""
+    if topic:
+        return search_memory_by_topic(topic)
+    if persona:
+        return search_memory_by_persona(persona)
+    return []
+
+
+@app.get("/api/memory/session/{session_id}")
+async def memory_get_session(session_id: str):
+    """Get full session memory record."""
+    result = get_session_memory(session_id)
+    if not result:
+        return {"error": "Session not found in memory"}
+    return result
+
+
+@app.get("/api/memory/insights/{topic:path}")
+async def memory_insights(topic: str):
+    """Get cross-session insights for a topic."""
+    return get_cross_session_insights(topic)
+
+
+@app.get("/api/memory/recommended-team/{topic:path}")
+async def memory_recommended_team(topic: str):
+    """Recommend team based on past performance for a topic."""
+    return recommend_team_from_memory(topic)
+
+
 def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
     """Find a free port, auto-hopping to avoid Windows TIME_WAIT conflicts."""
     import socket
@@ -2458,6 +2941,7 @@ def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
 if __name__ == "__main__":
     import uvicorn
 
+    init_memory_db()
     load_sessions_from_disk()
     port = find_free_port(8773)
     log.info("Starting SES Think Tank on port %d", port)

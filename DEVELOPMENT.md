@@ -101,21 +101,54 @@ WHITEBOARD:
 10. Synergy dashboard UI in `web/index.html` — sparkline graphs for cross-reference, friction, convergence; donut chart for participation; idea diversity counter; live update via WS; color-coded health badge; Intervene button + input field
 11. Metrics persisted to session JSON files and restored on load
 
-### 3.4 Multi-Session Memory
+### 3.4 Multi-Session Memory ✅
 **Problem:** Each session starts fresh — no continuity.
 **Solution:** Persistent memory across sessions for idea evolution.
 
 ```
-Session 1: "AI diagnostics" → Pinned 3 ideas
-Session 2: "Follow up on diagnostics" → Loads previous ideas, continues
-Session 3: "Healthcare equity" → References diagnostics work
+Session 1: "AI diagnostics" → Stored in SQLite with pins, personas, deliverable
+Session 2: "Healthcare equity" → Auto-detects similarity, shows past findings
+Session 3: "AI diagnostics follow-up" → Recommends team from past performance
 ```
 
 **Implementation:**
-1. SQLite DB for persistent idea storage
-2. Each idea has: ID, topic, content, votes, session_history
-3. Agents can reference previous sessions: "As we discussed in session #3..."
-4. User can browse idea history and resurrect old threads
+
+1. **SQLite Memory Store** (`init_memory_db()` in `app.py`) — lightweight SQLite database at `memory.db` with 4 tables:
+   - `memory_sessions` — session_id, topic, workflow_mode, started_at, ended_at, turn_count, deliverable, summary, persona_ids
+   - `memory_pins` — id, session_id, topic, content, author, status, created_at (whiteboard pins from completed sessions)
+   - `persona_interactions` — id, session_id, persona_id, turns_spoken, partners (which personas worked together)
+   - `cross_references` — id, session_id, referenced_session_id, reference_text, created_at
+
+2. **Memory Population** (`populate_memory()` in `app.py:1503`) — automatically called after `save_session_to_disk()` in both `run_salon()` and `run_structured()`:
+   - Inserts session record with topic summary (keyword extraction)
+   - Extracts all whiteboard pins into `memory_pins` table
+   - Records persona interaction history (turn counts per persona, partner lists)
+
+3. **Memory Retrieval API** (all in `app.py`):
+   - `GET /api/memory/sessions?topic=...` — search past sessions by keyword overlap (simple token matching, no deps)
+   - `GET /api/memory/sessions?persona=...` — find sessions with specific personas via JOIN
+   - `GET /api/memory/session/:id` — get full session memory record (session + pins + interactions)
+   - `GET /api/memory/insights/:topic` — get cross-session insights (session count, similar sessions, key findings, persona frequency)
+   - `GET /api/memory/recommended-team/:topic` — recommend team based on past performance (scores personas by appearance count + turns spoken)
+
+4. **WebSocket Integration** (`websocket_endpoint` in `app.py`):
+   - Emits `memory_suggestion` event on `start_conversation` when new topic matches past sessions
+   - Payload: `{match_count, similar_sessions: [{session_id, topic, turn_count}], message}`
+   - Wrapped in try/except — never blocks conversation startup
+
+5. **UI Memory Panel** (`web/index.html`):
+   - Memory section in right sidebar with search input and past session count badge
+   - Session cards showing topic, workflow mode, date, turn count, persona chips
+   - Click to expand — loads full summary and deliverable from `/api/memory/session/:id`
+   - Cross-session insight badges (e.g., "3 similar sessions found", persona frequency)
+   - Auto-checks memory on topic input (debounced 800ms) — shows related past sessions
+   - WebSocket `memory_suggestion` handler shows real-time suggestions on conversation start
+
+**Design decisions:**
+- SQLite with built-in `sqlite3` module — no `pip install` needed
+- Keyword overlap for topic similarity — no vector embeddings or external dependencies
+- Memory population wrapped in try/except — never blocks session completion
+- Summary extracted from topic keywords (simple but functional)
 
 ---
 

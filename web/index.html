@@ -240,6 +240,85 @@
   .eval-score { font-size: 24px; font-weight: 700; color: var(--accent); }
   .eval-reason { color: var(--text-dim); margin-top: 4px; }
 
+  /* ─── MEMORY PANEL (Phase 3.4) ─── */
+  .memory-section {
+    border-top: 1px solid var(--border); padding: 8px 16px;
+    max-height: 400px; overflow-y: auto;
+  }
+  .memory-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;
+  }
+  .memory-count {
+    font-size: 10px; color: var(--text-dim);
+    background: var(--surface2); padding: 2px 8px; border-radius: 6px;
+  }
+  .memory-search {
+    display: flex; gap: 4px; margin-bottom: 8px;
+  }
+  .memory-search input {
+    flex: 1; padding: 5px 8px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 11px; outline: none;
+  }
+  .memory-search input:focus { border-color: var(--accent); }
+  .memory-search button {
+    padding: 5px 10px; background: var(--accent); border: none; border-radius: 6px;
+    color: white; font-weight: 600; cursor: pointer; font-size: 10px; white-space: nowrap;
+  }
+  .memory-search button:hover { opacity: 0.9; }
+  .memory-badge-row {
+    display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .memory-insight-badge {
+    padding: 2px 8px; border-radius: 8px; font-size: 10px; font-weight: 600;
+    background: var(--surface2); border: 1px solid #f59e0b44; color: #f59e0b;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .memory-insight-badge:hover { background: #f59e0b22; }
+  .memory-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px; margin-bottom: 6px; cursor: pointer; transition: all 0.2s;
+  }
+  .memory-card:hover { border-color: var(--accent); }
+  .memory-card.expanded { border-color: var(--accent); }
+  .memory-card-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px;
+  }
+  .memory-card-topic {
+    font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1;
+  }
+  .memory-card-mode {
+    font-size: 10px; color: var(--text-dim); background: var(--bg);
+    padding: 1px 6px; border-radius: 4px; margin-left: 6px; white-space: nowrap;
+  }
+  .memory-card-meta {
+    font-size: 10px; color: var(--text-dim); margin-bottom: 4px;
+  }
+  .memory-card-personas {
+    display: flex; gap: 3px; flex-wrap: wrap; margin-bottom: 4px;
+  }
+  .memory-card-persona {
+    font-size: 9px; padding: 1px 6px; border-radius: 4px;
+    background: var(--bg); border: 1px solid var(--border); white-space: nowrap;
+  }
+  .memory-card-summary {
+    font-size: 11px; color: var(--text-dim); line-height: 1.4;
+    display: none; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border);
+  }
+  .memory-card.expanded .memory-card-summary { display: block; }
+  .memory-card-deliverable {
+    font-size: 11px; color: var(--text); line-height: 1.5; white-space: pre-wrap;
+    display: none; margin-top: 6px; padding: 8px; border-radius: 6px;
+    background: var(--bg); border: 1px solid var(--border); max-height: 200px; overflow-y: auto;
+  }
+  .memory-card.expanded .memory-card-deliverable { display: block; }
+  .memory-empty {
+    font-size: 11px; color: var(--text-dim); text-align: center; padding: 16px;
+  }
+  .memory-loading {
+    font-size: 11px; color: var(--text-dim); text-align: center; padding: 8px;
+  }
+
   /* Quick topics */
   .quick-topics { padding: 12px 16px; border-top: 1px solid var(--border); }
   .quick-topic {
@@ -520,6 +599,19 @@
     </div>
   </div>
 
+  <div class="memory-section" id="memorySection">
+    <div class="memory-header">
+      <div class="panel-title" style="margin:0;">Memory</div>
+      <span class="memory-count" id="memoryCount">0 past sessions</span>
+    </div>
+    <div class="memory-search">
+      <input type="text" id="memorySearchInput" placeholder="Search past sessions..." onkeydown="if(event.key==='Enter') searchMemory()">
+      <button onclick="searchMemory()">Search</button>
+    </div>
+    <div class="memory-badge-row" id="memoryBadgeRow"></div>
+    <div id="memoryResults"><div class="memory-empty">No sessions in memory yet.</div></div>
+  </div>
+
   <div class="quick-topics">
     <div class="panel-title">Quick Topics</div>
     <div class="quick-topic" onclick="setTopic(this.textContent)">🔬 Why do reasoning models struggle with emotional presence?</div>
@@ -628,6 +720,9 @@ function connectWS() {
         break;
       case 'whiteboard_update':
         renderWhiteboard(data.whiteboard);
+        break;
+      case 'memory_suggestion':
+        showMemorySuggestion(data);
         break;
     }
   };
@@ -1235,9 +1330,172 @@ document.getElementById('interveneInput')?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') intervene();
 });
 
-// Init
+// ─── Memory Suggestion Handler ───
+
+function showMemorySuggestion(data) {
+  if (!data.match_count) return;
+  const badgeRow = document.getElementById('memoryBadgeRow');
+  badgeRow.innerHTML = `<span class="memory-insight-badge" onclick="searchMemory()">${data.message}</span>`;
+  const container = document.getElementById('memoryResults');
+  if (data.similar_sessions) {
+    updateMemoryCount(data.match_count);
+  }
+}
+
+// ─── Memory Panel (Phase 3.4) ───
+
+let pastSessionCount = 0;
+
+function updateMemoryCount(count) {
+  pastSessionCount = count;
+  document.getElementById('memoryCount').textContent = `${count} past session${count !== 1 ? 's' : ''}`;
+}
+
+async function searchMemory() {
+  const query = document.getElementById('memorySearchInput').value.trim();
+  const container = document.getElementById('memoryResults');
+  if (!query) {
+    container.innerHTML = '<div class="memory-empty">Enter a search term.</div>';
+    return;
+  }
+  document.getElementById('memoryBadgeRow').innerHTML = '';
+
+  // Show cross-session insight badges
+  try {
+    const insightsResp = await fetch(`/api/memory/insights/${encodeURIComponent(query)}`);
+    const insights = await insightsResp.json();
+    if (insights.session_count > 0) {
+      const badgeRow = document.getElementById('memoryBadgeRow');
+      badgeRow.innerHTML = `<span class="memory-insight-badge" onclick="searchMemory()">${insights.session_count} similar sessions</span>`;
+      // Add persona frequency badges
+      if (insights.persona_frequency) {
+        Object.entries(insights.persona_frequency).slice(0, 3).forEach(([pid, count]) => {
+          const p = personas.find(pp => pp.id === pid);
+          const icon = p ? p.icon : (personaIcons[pid] || '•');
+          badgeRow.innerHTML += `<span class="memory-insight-badge" style="border-color:var(--accent);color:var(--accent);">${icon} ×${count}</span>`;
+        });
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  container.innerHTML = '<div class="memory-loading">Searching...</div>';
+
+  try {
+    const resp = await fetch(`/api/memory/sessions?topic=${encodeURIComponent(query)}`);
+    const sessions = await resp.json();
+    if (!sessions.length) {
+      container.innerHTML = '<div class="memory-empty">No matching sessions found.</div>';
+      return;
+    }
+    renderMemorySessions(sessions);
+  } catch (e) {
+    container.innerHTML = '<div class="memory-empty">Search failed.</div>';
+  }
+}
+
+function renderMemorySessions(sessions) {
+  const container = document.getElementById('memoryResults');
+  const defaultIcons = {rook: '♟️', elena: '🌸', kael: '⚡', maya: '🔮', jax: '🔥', sage: '🌿'};
+  const defaultColors = {rook: '#6366f1', elena: '#ec4899', kael: '#f59e0b', maya: '#06b6d4', jax: '#ef4444', sage: '#10b981'};
+
+  container.innerHTML = sessions.map(s => {
+    const pids = s.persona_ids || [];
+    const personaChips = pids.filter(Boolean).map(pid => {
+      const p = personas.find(pp => pp.id === pid);
+      const icon = p ? p.icon : (defaultIcons[pid] || '•');
+      return `<span class="memory-card-persona" style="border-color:${defaultColors[pid]||'var(--border)'}44;">${icon} ${p ? p.name : pid}</span>`;
+    }).join('');
+
+    const dateStr = s.started_at ? new Date(s.started_at * 1000).toLocaleDateString() : '—';
+    const turnStr = s.turn_count ? `${s.turn_count} turns` : '';
+
+    return `
+      <div class="memory-card" onclick="toggleMemoryCard(this, '${s.session_id}')">
+        <div class="memory-card-header">
+          <span class="memory-card-topic">${s.topic || 'Untitled'}</span>
+          <span class="memory-card-mode">${s.workflow_mode || '—'}</span>
+        </div>
+        <div class="memory-card-meta">${dateStr}${turnStr ? ' · ' + turnStr : ''}</div>
+        <div class="memory-card-personas">${personaChips}</div>
+        <div class="memory-card-summary" id="memorySummary_${s.session_id}">
+          ${s.summary || 'No summary available.'}
+        </div>
+        <div class="memory-card-deliverable" id="memoryDeliverable_${s.session_id}"></div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function toggleMemoryCard(el, sessionId) {
+  const isExpanded = el.classList.contains('expanded');
+  el.classList.toggle('expanded');
+  if (!isExpanded) {
+    // Load full details
+    const summaryDiv = document.getElementById(`memorySummary_${sessionId}`);
+    const deliverableDiv = document.getElementById(`memoryDeliverable_${sessionId}`);
+    if (!deliverableDiv.dataset.loaded) {
+      try {
+        const resp = await fetch(`/api/memory/session/${sessionId}`);
+        const data = await resp.json();
+        if (data.deliverable) {
+          deliverableDiv.textContent = data.deliverable;
+          deliverableDiv.dataset.loaded = '1';
+        }
+        if (data.pins && data.pins.length > 0) {
+          const pinText = data.pins.map(p => `📌 ${p.topic}: ${p.content}`).join('\n');
+          summaryDiv.innerHTML = data.summary ? data.summary + '\n\n📋 Pins:\n' + pinText : '📋 Pins:\n' + pinText;
+        }
+      } catch (e) { /* ignore */ }
+    }
+  }
+}
+
+async function checkMemoryOnTopicInput() {
+  const topic = document.getElementById('topicInput').value.trim();
+  if (!topic || topic.length < 5) return;
+  try {
+    const resp = await fetch(`/api/memory/sessions?topic=${encodeURIComponent(topic)}`);
+    const sessions = await resp.json();
+    updateMemoryCount(sessions.length);
+    if (sessions.length > 0) {
+      renderMemorySessions(sessions);
+      // Show insight badges
+      try {
+        const insightsResp = await fetch(`/api/memory/insights/${encodeURIComponent(topic)}`);
+        const insights = await insightsResp.json();
+        if (insights.session_count > 0) {
+          const badgeRow = document.getElementById('memoryBadgeRow');
+          badgeRow.innerHTML = `<span class="memory-insight-badge">${insights.session_count} similar sessions found</span>`;
+        }
+      } catch (e) { /* ignore */ }
+    }
+  } catch (e) { /* ignore */ }
+}
+
+// Debounced topic input listener
+let memoryCheckTimer = null;
+document.getElementById('topicInput').addEventListener('input', () => {
+  clearTimeout(memoryCheckTimer);
+  memoryCheckTimer = setTimeout(checkMemoryOnTopicInput, 800);
+});
+
+// WebSocket memory suggestion handler — add to ws.onmessage
+const origOnMessage = ws?.onmessage;
+// We hook into the connectWS function instead
+
+// ─── Init ───
 init();
 connectWS();
+
+// Load memory count on start
+(async function loadMemoryCount() {
+  try {
+    const resp = await fetch('/api/memory/sessions?topic=');
+    const sessions = await resp.json();
+    updateMemoryCount(sessions.length);
+    document.getElementById('memoryResults').innerHTML = '<div class="memory-empty">Type a topic above to search past sessions.</div>';
+  } catch (e) { /* ignore */ }
+})();
 </script>
 </body>
 </html>

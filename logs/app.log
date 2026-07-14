@@ -33,3 +33,7 @@
 {"timestamp": "2026-07-14T02:27:40.002823", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-8c922278 turns=1 time=73.4s workflow=salon"}
 {"timestamp": "2026-07-14T02:28:10.773808", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-b6aa0f52 turns=1 time=26.7s workflow=salon"}
 {"timestamp": "2026-07-14T02:29:29.390173", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-4644ee39 turns=1 time=76.6s workflow=salon"}
+{"timestamp": "2026-07-14T02:38:22.256797", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session test_001"}
+{"timestamp": "2026-07-14T02:47:41.393893", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=65.7s workflow=salon"}
+{"timestamp": "2026-07-14T02:53:50.751033", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session ev-s1"}
+{"timestamp": "2026-07-14T02:53:50.751033", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=53.9s workflow=salon"}

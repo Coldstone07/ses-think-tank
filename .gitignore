@@ -24,3 +24,7 @@ Thumbs.db
 # Env
 .env
 .venv/
+
+# Runtime data
+memory.db
+sessions/

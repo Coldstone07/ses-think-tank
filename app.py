@@ -12,10 +12,12 @@ phase, who's speaking, and the final deliverable.
 Usage:
     python3.11 -m uvicorn app:app --host 0.0.0.0 --port 8772 --reload
 """
+
 from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import random
 import re
@@ -28,9 +30,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import requests
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────
 
@@ -38,6 +40,62 @@ BASE_DIR = Path(__file__).parent
 ITEMS_DIR = Path(r"C:\Users\jatin\Desktop\SES-benchmark\items")
 OUTPUTS_DIR = BASE_DIR / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
+
+START_TIME = time.time()
+
+# Rate limiting
+RATE_LIMIT_STORE: Dict[str, list] = {}
+RATE_LIMIT_MAX = 100
+RATE_LIMIT_WINDOW = 60
+
+# Session persistence
+SESSIONS_DIR = BASE_DIR / "sessions"
+SESSIONS_DIR.mkdir(exist_ok=True)
+
+# Logging
+LOGS_DIR = BASE_DIR / "logs"
+LOGS_DIR.mkdir(exist_ok=True)
+
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        log_entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "message": record.getMessage(),
+        }
+        if record.exc_info and record.exc_info[0]:
+            log_entry["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
+
+log = logging.getLogger("ses-think-tank")
+log.setLevel(logging.INFO)
+log.propagate = False
+
+file_handler = logging.FileHandler(str(LOGS_DIR / "app.log"), encoding="utf-8")
+file_handler.setFormatter(JSONFormatter())
+log.addHandler(file_handler)
+
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(logging.Formatter("%(message)s"))
+log.addHandler(console_handler)
+
+PSUTIL_AVAILABLE = False
+try:
+    import psutil as _psutil
+
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    pass
+
+
+def _get_memory_mb() -> float:
+    if PSUTIL_AVAILABLE:
+        return round(_psutil.Process().memory_info().rss / 1024 / 1024, 1)
+    return 0.0
+
 
 LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://localhost:1234/v1")
 MODEL_ID = os.environ.get("THINK_TANK_MODEL", "qwen/qwen3.6-27b")
@@ -60,8 +118,16 @@ PERSONAS = [
         "accent": "Deep blue — analytical, structured",
         "background": "Former systems architect and ML researcher. Specializes in control theory, game theory, and architecture design. Has published on reinforcement learning failure modes. Skeptical of hand-wavy solutions — demands concrete mechanisms.",
         "dna": {
-            "core_drives": ["Build systems that actually work", "Eliminate ambiguity through structure", "Find the minimal viable architecture"],
-            "blind_spots": ["Dismisses emotional dimensions as 'noise'", "Over-engineers simple problems", "Struggles with stakeholder politics"],
+            "core_drives": [
+                "Build systems that actually work",
+                "Eliminate ambiguity through structure",
+                "Find the minimal viable architecture",
+            ],
+            "blind_spots": [
+                "Dismisses emotional dimensions as 'noise'",
+                "Over-engineers simple problems",
+                "Struggles with stakeholder politics",
+            ],
             "interaction_style": "Direct, structured, occasionally blunt. Uses frameworks and diagrams. Cites papers and data.",
             "relationships": {
                 "elena": "Respects her insight but thinks she overcomplicates. She keeps catching his blind spots on human factors.",
@@ -128,8 +194,16 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
         "accent": "Warm pink — intuitive, emotionally intelligent",
         "background": "Cultural anthropologist and clinical psychology researcher. Studies how different cultures express emotion, handle uncertainty, and navigate power dynamics. Has field experience in 12 countries. Bridges the gap between technical AI design and human lived experience.",
         "dna": {
-            "core_drives": ["Amplify unheard voices", "Translate emotional truth into actionable insight", "Protect vulnerable stakeholders"],
-            "blind_spots": ["Over-validates without pushing for action", "Can become emotionally overwhelmed by heavy topics", "Struggles to say 'no' to competing priorities"],
+            "core_drives": [
+                "Amplify unheard voices",
+                "Translate emotional truth into actionable insight",
+                "Protect vulnerable stakeholders",
+            ],
+            "blind_spots": [
+                "Over-validates without pushing for action",
+                "Can become emotionally overwhelmed by heavy topics",
+                "Struggles to say 'no' to competing priorities",
+            ],
             "interaction_style": "Warm but rigorous. Asks the questions others avoid. Uses stories and metaphors from fieldwork.",
             "relationships": {
                 "rook": "His architecture needs her human factors. She's learned to push back harder when he dismisses the emotional dimension.",
@@ -196,8 +270,16 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
         "accent": "Amber — bold, unconventional, contrarian",
         "background": "Philosophy PhD turned tech ethicist and former startup founder. Studies the intersection of technology, power, and human behavior. Known for tearing down popular narratives and finding the uncomfortable truths underneath. Reads Foucault, Deleuze, and Baudrillard for fun.",
         "dna": {
-            "core_drives": ["Expose hidden power structures", "Challenge sacred cows", "Find the uncomfortable truth everyone avoids"],
-            "blind_spots": ["Provokes for its own sake sometimes", "Dismisses incremental progress as complicity", "Struggles to build coalitions — too confrontational"],
+            "core_drives": [
+                "Expose hidden power structures",
+                "Challenge sacred cows",
+                "Find the uncomfortable truth everyone avoids",
+            ],
+            "blind_spots": [
+                "Provokes for its own sake sometimes",
+                "Dismisses incremental progress as complicity",
+                "Struggles to build coalitions — too confrontational",
+            ],
             "interaction_style": "Bold, provocative, philosophical. Uses thought experiments and historical parallels. Not afraid to be wrong.",
             "relationships": {
                 "rook": "Intellectual sparring partner. Rook rebuilds what Kael tears down. Their tension produces stronger architectures.",
@@ -264,8 +346,16 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
         "accent": "Cyan — integrative, creative, pattern-seeking",
         "background": "Computational biologist turned AI researcher. Studies complex adaptive systems — from protein folding to jazz improvisation to mycorrhizal networks. Expert at finding deep structural similarities between seemingly unrelated domains. The one who says 'wait, what if we think about it differently?'",
         "dna": {
-            "core_drives": ["Find the hidden pattern connecting everything", "Translate between domains that don't talk to each other", "Reframe problems so they become solvable"],
-            "blind_spots": ["Overcomplicates simple problems with elaborate metaphors", "Struggles to pick a side when synthesizing", "Can lose the room with abstract connections"],
+            "core_drives": [
+                "Find the hidden pattern connecting everything",
+                "Translate between domains that don't talk to each other",
+                "Reframe problems so they become solvable",
+            ],
+            "blind_spots": [
+                "Overcomplicates simple problems with elaborate metaphors",
+                "Struggles to pick a side when synthesizing",
+                "Can lose the room with abstract connections",
+            ],
             "interaction_style": "Creative, metaphorical, integrative. Bridges gaps between opposing viewpoints. Uses biology, physics, and art as lenses.",
             "relationships": {
                 "rook": "Her metaphors reveal structure he missed. He grounds her in concrete implementation. Best hybrid ideas come from their debates.",
@@ -332,8 +422,16 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
         "accent": "Red — pragmatic, disruptive, distribution-focused",
         "background": "Serial entrepreneur and growth hacker. Built and exited two AI startups. Studies market dynamics, distribution channels, and what actually gets adopted vs. what sits in research papers. Cynical about 'elegant' solutions that don't ship.",
         "dna": {
-            "core_drives": ["Ship something that users actually adopt", "Find the distribution channel others miss", "Turn insight into revenue"],
-            "blind_spots": ["Dismisses anything that doesn't have a clear monetization path", "Over-indexes on short-term metrics", "Struggles with long-term systemic thinking"],
+            "core_drives": [
+                "Ship something that users actually adopt",
+                "Find the distribution channel others miss",
+                "Turn insight into revenue",
+            ],
+            "blind_spots": [
+                "Dismisses anything that doesn't have a clear monetization path",
+                "Over-indexes on short-term metrics",
+                "Struggles with long-term systemic thinking",
+            ],
             "interaction_style": "Pragmatic, blunt, market-focused. Uses business cases, user data, and competitive analysis. Not afraid to say 'this won't ship.'",
             "relationships": {
                 "rook": "Frustrated by Rook's elegance. 'Beautiful architecture that no one uses is worse than ugly code that ships.'",
@@ -399,8 +497,16 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
         "accent": "Green — principled, long-term, harm-aware",
         "background": "Bioethicist and policy researcher. Studies the long-term consequences of technology on society, focusing on harm reduction, equity, and intergenerational justice. Has advised governments and NGOs on AI governance. The one who asks 'should we?' before 'can we?'",
         "dna": {
-            "core_drives": ["Prevent harm before it scales", "Ensure equitable distribution of benefits", "Think in decades, not quarters"],
-            "blind_spots": ["Paralysis by analysis — overthinking prevents action", "Dismisses incremental progress as insufficient", "Struggles with trade-offs between competing harms"],
+            "core_drives": [
+                "Prevent harm before it scales",
+                "Ensure equitable distribution of benefits",
+                "Think in decades, not quarters",
+            ],
+            "blind_spots": [
+                "Paralysis by analysis — overthinking prevents action",
+                "Dismisses incremental progress as insufficient",
+                "Struggles with trade-offs between competing harms",
+            ],
             "interaction_style": "Principled, thoughtful, long-term. Uses ethical frameworks, policy analysis, and historical precedents. Not afraid to say 'this shouldn't ship.'",
             "relationships": {
                 "rook": "Initially dismissive of ethics as 'constraints', now sees them as design requirements. Sage turns Rook's architecture more robust.",
@@ -660,8 +766,13 @@ WORKFLOWS = {
 
 # ─── LLM CALLS ─────────────────────────────────────────────────────────────
 
-def call_llm(messages: List[Dict], model_id: str = MODEL_ID,
-             temperature: float = 0.7, max_tokens: int = 1024) -> str:
+
+def call_llm(
+    messages: List[Dict],
+    model_id: str = MODEL_ID,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+) -> str:
     """Call LM Studio (local Qwen 3.6) with retry on timeout."""
     import time as _time
 
@@ -687,17 +798,21 @@ def call_llm(messages: List[Dict], model_id: str = MODEL_ID,
                 content = extract_from_reasoning(reasoning)
             return content
         except requests.exceptions.ReadTimeout:
-            print(f"  ⏳ LM Studio timeout (attempt {attempt+1}/3), retrying...")
+            log.warning("LM Studio timeout (attempt %d/3), retrying...", attempt + 1)
             _time.sleep(5)
         except Exception as e:
-            print(f"  ❌ LM Studio error: {e}")
+            log.error("LM Studio error: %s", e)
             raise
 
     raise RuntimeError("LM Studio failed after 3 retries")
 
 
-def call_llm_raw(messages: List[Dict], model_id: str = MODEL_ID,
-                 temperature: float = 0.7, max_tokens: int = 1024) -> dict:
+def call_llm_raw(
+    messages: List[Dict],
+    model_id: str = MODEL_ID,
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+) -> dict:
     """Call LM Studio and return raw response (reasoning_content + content).
     Useful for extracting JSON from reasoning models."""
     import time as _time
@@ -721,10 +836,10 @@ def call_llm_raw(messages: List[Dict], model_id: str = MODEL_ID,
                 "content": msg.get("content", ""),
             }
         except requests.exceptions.ReadTimeout:
-            print(f"  ⏳ LM Studio timeout (attempt {attempt+1}/3), retrying...")
+            log.warning("LM Studio timeout (attempt %d/3), retrying...", attempt + 1)
             _time.sleep(5)
         except Exception as e:
-            print(f"  ❌ LM Studio error: {e}")
+            log.error("LM Studio error: %s", e)
             raise
 
     raise RuntimeError("LM Studio failed after 3 retries")
@@ -740,7 +855,8 @@ def extract_json_from_text(text: str) -> Optional[dict]:
 
     # Try to find JSON object in the text
     import re
-    json_match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', text, re.DOTALL)
+
+    json_match = re.search(r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}", text, re.DOTALL)
     if json_match:
         try:
             return json.loads(json_match.group())
@@ -751,23 +867,28 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     depth = 0
     start = None
     for i, ch in enumerate(text):
-        if ch == '{':
+        if ch == "{":
             if depth == 0:
                 start = i
             depth += 1
-        elif ch == '}':
+        elif ch == "}":
             depth -= 1
             if depth == 0 and start is not None:
                 try:
-                    return json.loads(text[start:i+1])
+                    return json.loads(text[start : i + 1])
                 except json.JSONDecodeError:
                     start = None
                     depth = 0
 
     return None
 
-def call_gemini(messages: List[Dict], model_id: str = "gemini-2.5-flash",
-                temperature: float = 0.7, max_tokens: int = 1024) -> str:
+
+def call_gemini(
+    messages: List[Dict],
+    model_id: str = "gemini-2.5-flash",
+    temperature: float = 0.7,
+    max_tokens: int = 1024,
+) -> str:
     """Call Gemini API (Google AI Studio) directly — no SDK needed."""
     if not GEMINI_API_KEY:
         return "Gemini API key not configured (set GEMINI_API_KEY env var)"
@@ -775,10 +896,12 @@ def call_gemini(messages: List[Dict], model_id: str = "gemini-2.5-flash",
     gemini_contents = []
     for m in messages:
         role = "user" if m["role"] in ("user", "system") else "model"
-        gemini_contents.append({
-            "role": role,
-            "parts": [{"text": m["content"]}],
-        })
+        gemini_contents.append(
+            {
+                "role": role,
+                "parts": [{"text": m["content"]}],
+            }
+        )
 
     body = {
         "contents": gemini_contents,
@@ -799,12 +922,12 @@ def call_gemini(messages: List[Dict], model_id: str = "gemini-2.5-flash",
     data = resp.json()
     return data["candidates"][0]["content"]["parts"][0]["text"]
 
+
 def evaluate_conversation(messages: List[Message], topic: str) -> Dict:
     """Evaluate if the conversation has reached a natural conclusion point."""
-    conv_text = "\n".join([
-        f"{m.icon} {m.persona_name}: {m.content}"
-        for m in messages[-8:]
-    ])
+    conv_text = "\n".join(
+        [f"{m.icon} {m.persona_name}: {m.content}" for m in messages[-8:]]
+    )
 
     eval_prompt = f"""You are evaluating a multi-agent AI conversation about: "**{topic}**"
 
@@ -824,43 +947,61 @@ Be honest — if the conversation is circling, repeating, or has covered the top
 
     try:
         if GEMINI_API_KEY:
-            response = call_gemini([
-                {"role": "user", "content": eval_prompt}
-            ], "gemini-2.5-flash", 0.0, 512)
+            response = call_gemini(
+                [{"role": "user", "content": eval_prompt}], "gemini-2.5-flash", 0.0, 512
+            )
         else:
-            response = call_llm([
-                {"role": "user", "content": eval_prompt}
-            ], MODEL_ID, 0.0, 512)
+            response = call_llm(
+                [{"role": "user", "content": eval_prompt}], MODEL_ID, 0.0, 512
+            )
 
         import json as json_mod
-        json_match = re.search(r'\{[^{}]*"should_continue"[^{}]*\}', response, re.DOTALL)
+
+        json_match = re.search(
+            r'\{[^{}]*"should_continue"[^{}]*\}', response, re.DOTALL
+        )
         if not json_match:
-            json_match = re.search(r'\{.*\}', response, re.DOTALL)
+            json_match = re.search(r"\{.*\}", response, re.DOTALL)
         if json_match:
             result = json_mod.loads(json_match.group())
             return result
     except Exception as e:
-        print(f"Conversation evaluation failed: {e}")
+        log.error("Conversation evaluation failed: %s", e)
 
     # Fallback: smarter heuristic
     lower = " ".join([m.content.lower() for m in messages[-6:]])
-    repeating_phrases = ["i think", "i agree", "interesting", "you're right", "i see", "fascinating"]
+    repeating_phrases = [
+        "i think",
+        "i agree",
+        "interesting",
+        "you're right",
+        "i see",
+        "fascinating",
+    ]
     repeat_count = sum(lower.count(phrase) for phrase in repeating_phrases)
-    agreement_signals = lower.count("agree") + lower.count("right") + lower.count("true")
-    conclusion_signals = lower.count("wrap up") + lower.count("summarize") + lower.count("in conclusion")
+    agreement_signals = (
+        lower.count("agree") + lower.count("right") + lower.count("true")
+    )
+    conclusion_signals = (
+        lower.count("wrap up") + lower.count("summarize") + lower.count("in conclusion")
+    )
     short_responses = sum(1 for m in messages[-6:] if len(m.content) < 100)
 
     # Check for content diversity (unique ideas vs repetition)
     unique_words = set()
     for m in messages[-4:]:
         unique_words.update(m.content.lower().split())
-    diversity_ratio = len(unique_words) / max(1, sum(len(m.content.split()) for m in messages[-4:]))
+    diversity_ratio = len(unique_words) / max(
+        1, sum(len(m.content.split()) for m in messages[-4:])
+    )
 
     # More realistic end conditions
     should_end = (
-        repeat_count > 5 or agreement_signals > 4 or
-        conclusion_signals > 0 or short_responses > 2 or
-        diversity_ratio < 0.4  # Low diversity = repeating same ideas
+        repeat_count > 5
+        or agreement_signals > 4
+        or conclusion_signals > 0
+        or short_responses > 2
+        or diversity_ratio < 0.4  # Low diversity = repeating same ideas
     )
 
     # Dynamic quality score based on actual content
@@ -877,58 +1018,77 @@ Be honest — if the conversation is circling, repeating, or has covered the top
         "new_directions": [],
     }
 
+
 def extract_from_reasoning(reasoning: str) -> str:
     """Extract the actual response from Qwen 3.6 chain-of-thought."""
     # Strategy 0: Look for explicit response separator (most reliable)
     sep = reasoning.rfind("---RESPONSE---")
     if sep != -1:
-        return reasoning[sep + len("---RESPONSE---"):].strip()
+        return reasoning[sep + len("---RESPONSE---") :].strip()
 
     # Strategy 1: Extract draft paragraphs
     draft_sections = re.findall(
-        r'(?:Draft\s*[-:]?\s*(?:Paragraph\s*\d+\s*[-:]?)?\s*\n?\s*)(.+?)(?=\n\s*\d+\.\s*(?:\*|\w)|\n\s*\*\*Check|\n\s*\*\*Refine|\n\s*All constraints|Ready\.\s*$)',
-        reasoning, re.DOTALL
+        r"(?:Draft\s*[-:]?\s*(?:Paragraph\s*\d+\s*[-:]?)?\s*\n?\s*)(.+?)(?=\n\s*\d+\.\s*(?:\*|\w)|\n\s*\*\*Check|\n\s*\*\*Refine|\n\s*All constraints|Ready\.\s*$)",
+        reasoning,
+        re.DOTALL,
     )
     if draft_sections:
-        result = '\n\n'.join([d.strip() for d in draft_sections if len(d.strip()) > 50])
+        result = "\n\n".join([d.strip() for d in draft_sections if len(d.strip()) > 50])
         if len(result) > 50:
             return result.strip()
 
     # Strategy 2: Extract inline draft paragraphs
     inline_drafts = re.findall(
-        r'\*?Para\s*\d+\s*:\s*(.+?)\n\s*\*?(?:Para|\d+\.\s*\*\*Check|\*\*Refine|All constraints)',
-        reasoning, re.DOTALL
+        r"\*?Para\s*\d+\s*:\s*(.+?)\n\s*\*?(?:Para|\d+\.\s*\*\*Check|\*\*Refine|All constraints)",
+        reasoning,
+        re.DOTALL,
     )
     if inline_drafts:
-        result = '\n\n'.join([d.strip() for d in inline_drafts if len(d.strip()) > 50])
+        result = "\n\n".join([d.strip() for d in inline_drafts if len(d.strip()) > 50])
         if len(result) > 50:
             return result.strip()
 
     # Strategy 3: Look for substantial paragraphs between "Draft" and "Check"
-    draft_idx = reasoning.find('Draft')
-    check_idx = reasoning.rfind('Check')
+    draft_idx = reasoning.find("Draft")
+    check_idx = reasoning.rfind("Check")
     if draft_idx != -1 and check_idx != -1 and check_idx > draft_idx:
         draft_section = reasoning[draft_idx:check_idx]
-        lines = draft_section.split('\n')
+        lines = draft_section.split("\n")
         content_lines = []
         skip_patterns = [
-            r'(?:Draft|Paragraph)\s*[-:]', r'\d+\.\s*\*\*', r'\d+\.\s*Analyze',
-            r'\d+\.\s*Deconstruct', r'\d+\.\s*Identify', r'\d+\.\s*Check',
-            r'\d+\.\s*Refine', r'\d+\.\s*Format', r'\d+\.\s*Tone'
+            r"(?:Draft|Paragraph)\s*[-:]",
+            r"\d+\.\s*\*\*",
+            r"\d+\.\s*Analyze",
+            r"\d+\.\s*Deconstruct",
+            r"\d+\.\s*Identify",
+            r"\d+\.\s*Check",
+            r"\d+\.\s*Refine",
+            r"\d+\.\s*Format",
+            r"\d+\.\s*Tone",
         ]
         for line in lines:
             s = line.strip()
             if s and not any(re.match(p, s, re.IGNORECASE) for p in skip_patterns):
                 content_lines.append(line)
-        result = '\n'.join(content_lines).strip()
+        result = "\n".join(content_lines).strip()
         if len(result) > 50:
             return result
 
     # Strategy 4: Filter out internal monologue patterns
     # If the text contains "Actually, let's", "Wait,", "Hmm,", "How about", "Let me",
     # it's likely still thinking. Try to find the first substantial paragraph AFTER these.
-    monologue_markers = ["actually, let's", "wait,", "hmm,", "how about", "let me think",
-                         "let's go with", "let's stick to", "actually,", "no,", "yes, but"]
+    monologue_markers = [
+        "actually, let's",
+        "wait,",
+        "hmm,",
+        "how about",
+        "let me think",
+        "let's go with",
+        "let's stick to",
+        "actually,",
+        "no,",
+        "yes, but",
+    ]
     is_monologue = any(marker in reasoning.lower() for marker in monologue_markers)
     if is_monologue:
         # Try to find content after the last monologue marker
@@ -939,23 +1099,33 @@ def extract_from_reasoning(reasoning: str) -> str:
                 last_marker = idx
         # Look for substantial content after the last marker
         after_marker = reasoning[last_marker:]
-        paragraphs = after_marker.split('\n\n')
+        paragraphs = after_marker.split("\n\n")
         for p in paragraphs:
             p = p.strip()
             if len(p) > 100 and not any(m in p.lower() for m in monologue_markers):
                 return p
 
     # Strategy 5: Last substantial block that's not analysis
-    paragraphs = reasoning.split('\n\n')
+    paragraphs = reasoning.split("\n\n")
     for p in reversed(paragraphs):
         p = p.strip()
         if len(p) > 100:
-            if not p.startswith(('**Check', '**Refine', '**Final', "Here's a thinking",
-                                 '1.  **Analyze', '1. **Analyze', '1.**Analyze')):
-                if not re.match(r'\d+\.\s*\*\*', p):
+            if not p.startswith(
+                (
+                    "**Check",
+                    "**Refine",
+                    "**Final",
+                    "Here's a thinking",
+                    "1.  **Analyze",
+                    "1. **Analyze",
+                    "1.**Analyze",
+                )
+            ):
+                if not re.match(r"\d+\.\s*\*\*", p):
                     return p
 
     return reasoning[-300:].strip()
+
 
 def web_search(query: str) -> str:
     """Simple web search using DuckDuckGo HTML."""
@@ -966,20 +1136,27 @@ def web_search(query: str) -> str:
             timeout=10,
         )
         from html.parser import HTMLParser
+
         class TextExtractor(HTMLParser):
             def __init__(self):
                 super().__init__()
                 self.texts = []
                 self.in_snippet = False
+
             def handle_starttag(self, tag, attrs):
-                if tag == "a" and any(k == "class" and "result-snippet" in v for k, v in attrs):
+                if tag == "a" and any(
+                    k == "class" and "result-snippet" in v for k, v in attrs
+                ):
                     self.in_snippet = True
+
             def handle_endtag(self, tag):
                 if tag == "a" and self.in_snippet:
                     self.in_snippet = False
+
             def handle_data(self, data):
                 if self.in_snippet:
                     self.texts.append(data.strip())
+
         ext = TextExtractor()
         ext.feed(resp.text)
         return "\n".join(ext.texts[:5])
@@ -988,6 +1165,7 @@ def web_search(query: str) -> str:
 
 
 # ─── DATA MODELS ─────────────────────────────────────────────────────────────
+
 
 @dataclass
 class Message:
@@ -1000,6 +1178,7 @@ class Message:
     timestamp: float
     phase: str = ""
     is_thinking: bool = False
+
 
 @dataclass
 class ConversationSession:
@@ -1020,11 +1199,15 @@ class ConversationSession:
 
 # ─── CONVERSATION ENGINE ─────────────────────────────────────────────────────
 
-async def run_conversation(session_id: str, topic: str,
-                          persona_ids: List[str],
-                          max_turns: int = 20,
-                          workflow_mode: str = "salon",
-                          websocket: WebSocket = None) -> ConversationSession:
+
+async def run_conversation(
+    session_id: str,
+    topic: str,
+    persona_ids: List[str],
+    max_turns: int = 20,
+    workflow_mode: str = "salon",
+    websocket: WebSocket = None,
+) -> ConversationSession:
     """Run a multi-agent conversation session with workflow support."""
     session = ConversationSession(
         session_id=session_id,
@@ -1045,10 +1228,17 @@ async def run_conversation(session_id: str, topic: str,
     if workflow_mode == "salon":
         return await run_salon(session, selected_personas, topic, websocket)
     else:
-        return await run_structured(session, selected_personas, topic, workflow, websocket)
+        return await run_structured(
+            session, selected_personas, topic, workflow, websocket
+        )
 
-async def run_salon(session: ConversationSession, selected_personas: List[Dict],
-                    topic: str, websocket: WebSocket = None) -> ConversationSession:
+
+async def run_salon(
+    session: ConversationSession,
+    selected_personas: List[Dict],
+    topic: str,
+    websocket: WebSocket = None,
+) -> ConversationSession:
     """Original freeform debate mode."""
     # Opening message
     opener = selected_personas[0]
@@ -1057,16 +1247,25 @@ async def run_salon(session: ConversationSession, selected_personas: List[Dict],
 You are starting this conversation. Set the stage, share your initial thoughts, and invite others to engage. Be genuine and specific. Keep your response to 2-4 paragraphs."""
 
     response = await asyncio.get_event_loop().run_in_executor(
-        None, call_llm,
-        [{"role": "system", "content": opener["system_prompt"]},
-         {"role": "user", "content": opening_prompt}],
-        MODEL_ID, 0.9, 1024
+        None,
+        call_llm,
+        [
+            {"role": "system", "content": opener["system_prompt"]},
+            {"role": "user", "content": opening_prompt},
+        ],
+        MODEL_ID,
+        0.9,
+        1024,
     )
 
     msg = Message(
-        id=str(uuid.uuid4())[:8], persona_id=opener["id"],
-        persona_name=opener["name"], icon=opener["icon"],
-        color=opener["color"], content=response, timestamp=time.time(),
+        id=str(uuid.uuid4())[:8],
+        persona_id=opener["id"],
+        persona_name=opener["name"],
+        icon=opener["icon"],
+        color=opener["color"],
+        content=response,
+        timestamp=time.time(),
     )
     session.messages.append(msg)
     session.turn_count += 1
@@ -1076,7 +1275,7 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
 
     # Main loop
     while session.turn_count < session.max_turns and session.active:
-        persona_ids = [p['id'] for p in selected_personas]
+        persona_ids = [p["id"] for p in selected_personas]
         if session.messages:
             prev_id = session.messages[-1].persona_id
             candidates = [pid for pid in persona_ids if pid != prev_id]
@@ -1085,9 +1284,11 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
             next_id = random.choice(fresh) if fresh else random.choice(candidates)
         else:
             next_id = persona_ids[0]
-        next_persona = next(p for p in selected_personas if p['id'] == next_id)
+        next_persona = next(p for p in selected_personas if p["id"] == next_id)
 
-        conv_text = "\n".join([f"{m.icon} {m.persona_name}: {m.content}" for m in session.messages[-6:]])
+        conv_text = "\n".join(
+            [f"{m.icon} {m.persona_name}: {m.content}" for m in session.messages[-6:]]
+        )
 
         search_context = ""
         if session.turn_count % 3 == 0:
@@ -1108,16 +1309,25 @@ Here's what's been discussed:
 Now it's your turn. Engage with what others have said. Be specific and genuine. 2-4 paragraphs."""
 
         response = await asyncio.get_event_loop().run_in_executor(
-            None, call_llm,
-            [{"role": "system", "content": next_persona["system_prompt"]},
-             {"role": "user", "content": response_prompt}],
-            MODEL_ID, 0.85, 1024
+            None,
+            call_llm,
+            [
+                {"role": "system", "content": next_persona["system_prompt"]},
+                {"role": "user", "content": response_prompt},
+            ],
+            MODEL_ID,
+            0.85,
+            1024,
         )
 
         msg = Message(
-            id=str(uuid.uuid4())[:8], persona_id=next_persona["id"],
-            persona_name=next_persona["name"], icon=next_persona["icon"],
-            color=next_persona["color"], content=response, timestamp=time.time(),
+            id=str(uuid.uuid4())[:8],
+            persona_id=next_persona["id"],
+            persona_name=next_persona["name"],
+            icon=next_persona["icon"],
+            color=next_persona["color"],
+            content=response,
+            timestamp=time.time(),
         )
         session.messages.append(msg)
         session.turn_count += 1
@@ -1132,20 +1342,43 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
             )
             session.evaluations.append(eval_result)
             if websocket:
-                await send_ws(websocket, "evaluation", {"turn": session.turn_count, "evaluation": eval_result})
+                await send_ws(
+                    websocket,
+                    "evaluation",
+                    {"turn": session.turn_count, "evaluation": eval_result},
+                )
             if not eval_result.get("should_continue", True):
                 break
 
     session.active = False
+    save_session_to_disk(session)
+    log.info(
+        "Session complete: id=%s turns=%d time=%.1fs workflow=%s",
+        session.session_id,
+        session.turn_count,
+        time.time() - session.started_at,
+        session.workflow_mode,
+    )
     if websocket:
-        await send_ws(websocket, "session_complete", {
-            "session_id": session.session_id, "total_turns": session.turn_count,
-            "total_time": time.time() - session.started_at,
-        })
+        await send_ws(
+            websocket,
+            "session_complete",
+            {
+                "session_id": session.session_id,
+                "total_turns": session.turn_count,
+                "total_time": time.time() - session.started_at,
+            },
+        )
     return session
 
-async def run_structured(session: ConversationSession, selected_personas: List[Dict],
-                         topic: str, workflow: Dict, websocket: WebSocket = None) -> ConversationSession:
+
+async def run_structured(
+    session: ConversationSession,
+    selected_personas: List[Dict],
+    topic: str,
+    workflow: Dict,
+    websocket: WebSocket = None,
+) -> ConversationSession:
     """Run a structured workflow (Design or Sprint mode)."""
     phases = workflow["phases"]
 
@@ -1159,23 +1392,37 @@ async def run_structured(session: ConversationSession, selected_personas: List[D
         phase_instructions = phase.get("speaker_instructions", {})
 
         session.current_phase = phase_id
-        session.phase_history.append({
-            "phase": phase_id, "name": phase_name, "icon": phase_icon,
-            "description": phase_desc, "started_at": time.time(),
-        })
+        session.phase_history.append(
+            {
+                "phase": phase_id,
+                "name": phase_name,
+                "icon": phase_icon,
+                "description": phase_desc,
+                "started_at": time.time(),
+            }
+        )
 
         if websocket:
-            await send_ws(websocket, "phase_change", {
-                "phase": phase_id, "name": phase_name, "icon": phase_icon,
-                "description": phase_desc, "turns": phase_turns,
-                "speakers": phase_speakers,
-                "progress": phases.index(phase) + 1,
-                "total_phases": len(phases),
-            })
+            await send_ws(
+                websocket,
+                "phase_change",
+                {
+                    "phase": phase_id,
+                    "name": phase_name,
+                    "icon": phase_icon,
+                    "description": phase_desc,
+                    "turns": phase_turns,
+                    "speakers": phase_speakers,
+                    "progress": phases.index(phase) + 1,
+                    "total_phases": len(phases),
+                },
+            )
             await asyncio.sleep(0.5)
 
         # Filter to selected personas who are in this phase's speaker list
-        phase_persona_ids = [s for s in phase_speakers if s in [p["id"] for p in selected_personas]]
+        phase_persona_ids = [
+            s for s in phase_speakers if s in [p["id"] for p in selected_personas]
+        ]
         if not phase_persona_ids:
             phase_persona_ids = [p["id"] for p in selected_personas]
 
@@ -1189,7 +1436,12 @@ async def run_structured(session: ConversationSession, selected_personas: List[D
             speaker = next(p for p in selected_personas if p["id"] == speaker_id)
 
             # Build context
-            conv_text = "\n".join([f"{m.icon} {m.persona_name}: {m.content}" for m in session.messages[-8:]])
+            conv_text = "\n".join(
+                [
+                    f"{m.icon} {m.persona_name}: {m.content}"
+                    for m in session.messages[-8:]
+                ]
+            )
 
             # Get phase-specific instruction
             instruction = phase_instructions.get(speaker_id, "")
@@ -1211,16 +1463,25 @@ Here's what's been discussed so far:
 Respond in your natural voice. Be specific, genuine, and build on what others have said. 2-4 paragraphs."""
 
             response = await asyncio.get_event_loop().run_in_executor(
-                None, call_llm,
-                [{"role": "system", "content": speaker["system_prompt"]},
-                 {"role": "user", "content": response_prompt}],
-                MODEL_ID, 0.85, 2048 if phase_id in ("synthesize", "finalize") else 512
+                None,
+                call_llm,
+                [
+                    {"role": "system", "content": speaker["system_prompt"]},
+                    {"role": "user", "content": response_prompt},
+                ],
+                MODEL_ID,
+                0.85,
+                2048 if phase_id in ("synthesize", "finalize") else 512,
             )
 
             msg = Message(
-                id=str(uuid.uuid4())[:8], persona_id=speaker["id"],
-                persona_name=speaker["name"], icon=speaker["icon"],
-                color=speaker["color"], content=response, timestamp=time.time(),
+                id=str(uuid.uuid4())[:8],
+                persona_id=speaker["id"],
+                persona_name=speaker["name"],
+                icon=speaker["icon"],
+                color=speaker["color"],
+                content=response,
+                timestamp=time.time(),
                 phase=phase_id,
             )
             session.messages.append(msg)
@@ -1232,38 +1493,120 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
 
         # Phase complete — extract any deliverable from last message
         if phase_id in ("synthesize", "finalize"):
-            session.deliverable = session.messages[-1].content if session.messages else ""
+            session.deliverable = (
+                session.messages[-1].content if session.messages else ""
+            )
             if websocket:
-                await send_ws(websocket, "deliverable", {
-                    "content": session.deliverable,
-                    "author": session.messages[-1].persona_name if session.messages else "",
-                    "phase": phase_id,
-                })
+                await send_ws(
+                    websocket,
+                    "deliverable",
+                    {
+                        "content": session.deliverable,
+                        "author": session.messages[-1].persona_name
+                        if session.messages
+                        else "",
+                        "phase": phase_id,
+                    },
+                )
 
         # Update phase history with end time
         session.phase_history[-1]["ended_at"] = time.time()
 
     session.active = False
+    save_session_to_disk(session)
+    log.info(
+        "Session complete: id=%s turns=%d time=%.1fs workflow=%s deliverable=%s",
+        session.session_id,
+        session.turn_count,
+        time.time() - session.started_at,
+        session.workflow_mode,
+        bool(session.deliverable),
+    )
     if websocket:
-        await send_ws(websocket, "session_complete", {
-            "session_id": session.session_id, "total_turns": session.turn_count,
-            "total_time": time.time() - session.started_at,
-            "deliverable": session.deliverable,
-        })
+        await send_ws(
+            websocket,
+            "session_complete",
+            {
+                "session_id": session.session_id,
+                "total_turns": session.turn_count,
+                "total_time": time.time() - session.started_at,
+                "deliverable": session.deliverable,
+            },
+        )
     return session
 
 
 def asdict(obj):
     """Convert dataclass to dict."""
     return {
-        "id": obj.id, "persona_id": obj.persona_id,
-        "persona_name": obj.persona_name, "icon": obj.icon,
-        "color": obj.color, "content": obj.content,
-        "timestamp": obj.timestamp, "phase": getattr(obj, 'phase', ''),
+        "id": obj.id,
+        "persona_id": obj.persona_id,
+        "persona_name": obj.persona_name,
+        "icon": obj.icon,
+        "color": obj.color,
+        "content": obj.content,
+        "timestamp": obj.timestamp,
+        "phase": getattr(obj, "phase", ""),
+        "is_thinking": getattr(obj, "is_thinking", False),
     }
+
 
 async def send_ws(websocket: WebSocket, event_type: str, data: Dict):
     await websocket.send_json({"type": event_type, **data})
+
+
+# ─── SESSION PERSISTENCE ──────────────────────────────────────────────────
+
+
+def save_session_to_disk(session: ConversationSession):
+    """Save a conversation session to disk as JSON."""
+    path = SESSIONS_DIR / f"{session.session_id}.json"
+    data = {
+        "session_id": session.session_id,
+        "topic": session.topic,
+        "messages": [asdict(m) for m in session.messages],
+        "started_at": session.started_at,
+        "active": session.active,
+        "turn_count": session.turn_count,
+        "max_turns": session.max_turns,
+        "evaluations": session.evaluations,
+        "workflow_mode": session.workflow_mode,
+        "current_phase": session.current_phase,
+        "phase_history": session.phase_history,
+        "deliverable": session.deliverable,
+        "personas": session.personas,
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2, default=str)
+
+
+def load_sessions_from_disk():
+    """Load saved sessions from disk into active_sessions."""
+    if not SESSIONS_DIR.exists():
+        return
+    for path in sorted(SESSIONS_DIR.glob("*.json")):
+        try:
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            session = ConversationSession(
+                session_id=data["session_id"],
+                topic=data["topic"],
+                started_at=data.get("started_at", 0),
+                active=data.get("active", False),
+                turn_count=data.get("turn_count", 0),
+                max_turns=data.get("max_turns", 30),
+                evaluations=data.get("evaluations", []),
+                workflow_mode=data.get("workflow_mode", "salon"),
+                current_phase=data.get("current_phase", ""),
+                phase_history=data.get("phase_history", []),
+                deliverable=data.get("deliverable", ""),
+                personas=data.get("personas", []),
+            )
+            for m in data.get("messages", []):
+                session.messages.append(Message(**m))
+            active_sessions[session.session_id] = session
+        except Exception as e:
+            log.warning("Failed to load session %s: %s", path.name, e)
 
 
 # ─── FASTAPI APP ─────────────────────────────────────────────────────────────
@@ -1274,16 +1617,52 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "web")), name="static"
 active_connections: Dict[str, WebSocket] = {}
 active_sessions: Dict[str, ConversationSession] = {}
 
+
+# ─── RATE LIMITER MIDDLEWARE ──────────────────────────────────────────────
+
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    ip = request.client.host if request.client else "unknown"
+    now = time.time()
+    window_start = now - RATE_LIMIT_WINDOW
+    timestamps = RATE_LIMIT_STORE.get(ip, [])
+    timestamps = [t for t in timestamps if t > window_start]
+    if len(timestamps) >= RATE_LIMIT_MAX:
+        log.warning("Rate limit exceeded for IP %s", ip)
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit exceeded", "retry_after": RATE_LIMIT_WINDOW},
+        )
+    timestamps.append(now)
+    RATE_LIMIT_STORE[ip] = timestamps
+    response = await call_next(request)
+    return response
+
+
 @app.get("/", response_class=HTMLResponse)
 async def index():
     with open(BASE_DIR / "web" / "index.html") as f:
         return f.read()
 
+
 @app.get("/api/personas")
 async def get_personas():
     return PERSONAS
 
+
 from fastapi import Request as FastAPIRequest
+
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "uptime": round(time.time() - START_TIME, 1),
+        "memory_mb": _get_memory_mb(),
+        "active_sessions": len(active_sessions),
+    }
+
 
 @app.post("/api/chat")
 async def chat_with_persona(request: FastAPIRequest):
@@ -1291,18 +1670,18 @@ async def chat_with_persona(request: FastAPIRequest):
     body = await request.json()
     persona_id = body.get("persona_id")
     message = body.get("message")
-    
-    persona = next((p for p in PERSONAS if p['id'] == persona_id), None)
+
+    persona = next((p for p in PERSONAS if p["id"] == persona_id), None)
     if not persona:
         return {"error": f"Unknown persona: {persona_id}"}
-    
+
     messages = [
         {"role": "system", "content": persona["system_prompt"]},
         {"role": "user", "content": message},
     ]
-    
+
     response = call_llm(messages, temperature=0.85, max_tokens=1024)
-    
+
     return {
         "persona_id": persona_id,
         "persona_name": persona["name"],
@@ -1310,32 +1689,95 @@ async def chat_with_persona(request: FastAPIRequest):
         "response": response,
     }
 
+
 @app.get("/api/workflows")
 async def get_workflows():
     return WORKFLOWS
+
+
+@app.get("/api/sessions/{session_id}")
+async def get_session(session_id: str):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    return {
+        "session_id": session.session_id,
+        "topic": session.topic,
+        "messages": [asdict(m) for m in session.messages],
+        "started_at": session.started_at,
+        "active": session.active,
+        "turn_count": session.turn_count,
+        "max_turns": session.max_turns,
+        "evaluations": session.evaluations,
+        "workflow_mode": session.workflow_mode,
+        "current_phase": session.current_phase,
+        "phase_history": session.phase_history,
+        "deliverable": session.deliverable,
+    }
+
+
+@app.delete("/api/sessions/{session_id}")
+async def delete_session(session_id: str):
+    session = active_sessions.pop(session_id, None)
+    if not session:
+        return {"error": "Session not found"}
+    path = SESSIONS_DIR / f"{session_id}.json"
+    if path.exists():
+        path.unlink()
+    log.info("Deleted session %s", session_id)
+    return {"status": "deleted", "session_id": session_id}
+
 
 @app.get("/api/sessions")
 async def get_sessions():
     return [
         {
-            "session_id": s.session_id, "topic": s.topic,
-            "turn_count": s.turn_count, "active": s.active,
-            "started_at": s.started_at, "workflow_mode": s.workflow_mode,
+            "session_id": s.session_id,
+            "topic": s.topic,
+            "turn_count": s.turn_count,
+            "active": s.active,
+            "started_at": s.started_at,
+            "workflow_mode": s.workflow_mode,
             "current_phase": s.current_phase,
         }
         for s in active_sessions.values()
     ]
 
+
 @app.post("/api/session")
-async def create_session(topic: str, personas: str = "", max_turns: int = 20, workflow_mode: str = "salon"):
-    persona_ids = [p.strip() for p in personas.split(",")] if personas else [p["id"] for p in PERSONAS]
+async def create_session(
+    topic: str, personas: str = "", max_turns: int = 20, workflow_mode: str = "salon"
+):
+    persona_ids = (
+        [p.strip() for p in personas.split(",")]
+        if personas
+        else [p["id"] for p in PERSONAS]
+    )
     session_id = str(uuid.uuid4())[:8]
     wf = WORKFLOWS.get(workflow_mode, WORKFLOWS["salon"])
-    active_sessions[session_id] = ConversationSession(
-        session_id=session_id, topic=topic, started_at=time.time(),
-        max_turns=max_turns, workflow_mode=workflow_mode,
+    session = ConversationSession(
+        session_id=session_id,
+        topic=topic,
+        started_at=time.time(),
+        max_turns=max_turns,
+        workflow_mode=workflow_mode,
     )
-    return {"session_id": session_id, "topic": topic, "personas": persona_ids, "workflow": workflow_mode}
+    active_sessions[session_id] = session
+    save_session_to_disk(session)
+    log.info(
+        "Session created: id=%s topic=%s workflow=%s personas=%d",
+        session_id,
+        topic,
+        workflow_mode,
+        len(persona_ids),
+    )
+    return {
+        "session_id": session_id,
+        "topic": topic,
+        "personas": persona_ids,
+        "workflow": workflow_mode,
+    }
+
 
 @app.websocket("/ws/{client_id}")
 async def websocket_endpoint(websocket: WebSocket, client_id: str):
@@ -1354,7 +1796,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 session_id = msg.get("session_id")
                 topic = msg.get("topic")
                 if not topic:
-                    await websocket.send_json({"type": "error", "message": "Missing topic"})
+                    await websocket.send_json(
+                        {"type": "error", "message": "Missing topic"}
+                    )
                     continue
                 persona_ids = msg.get("personas", [p["id"] for p in PERSONAS])
                 max_turns = msg.get("max_turns", 20)
@@ -1362,11 +1806,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
                 try:
                     session = await run_conversation(
-                        session_id, topic, persona_ids, max_turns, workflow_mode, websocket
+                        session_id,
+                        topic,
+                        persona_ids,
+                        max_turns,
+                        workflow_mode,
+                        websocket,
                     )
                     active_sessions[session_id] = session
                 except Exception as e:
-                    await websocket.send_json({"type": "error", "message": f"Conversation failed: {str(e)}"})
+                    await websocket.send_json(
+                        {"type": "error", "message": f"Conversation failed: {str(e)}"}
+                    )
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
@@ -1374,13 +1825,15 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        print(f"❌ WebSocket error for {client_id}: {e}")
+        log.error("WebSocket error for %s: %s", client_id, e)
     finally:
         active_connections.pop(client_id, None)
+
 
 @app.get("/api/search")
 async def search(query: str):
     return {"query": query, "results": web_search(query)}
+
 
 @app.get("/api/items")
 async def get_items(pillar: str = "", limit: int = 50):
@@ -1391,18 +1844,24 @@ async def get_items(pillar: str = "", limit: int = 50):
                 with open(yaml_path) as f:
                     raw = yaml.safe_load(f)
                 if raw and "id" in raw:
-                    items.append({
-                        "id": raw["id"], "pillar": raw.get("pillar", ""),
-                        "dimension": raw.get("dimension", ""), "level": raw.get("level", 1),
-                        "situation": raw.get("situation", ""),
-                    })
+                    items.append(
+                        {
+                            "id": raw["id"],
+                            "pillar": raw.get("pillar", ""),
+                            "dimension": raw.get("dimension", ""),
+                            "level": raw.get("level", 1),
+                            "situation": raw.get("situation", ""),
+                        }
+                    )
             except Exception:
                 continue
     return items[:limit]
 
+
 def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
     """Find a free port, auto-hopping to avoid Windows TIME_WAIT conflicts."""
     import socket
+
     for port in range(start_port, start_port + max_attempts):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             try:
@@ -1411,11 +1870,15 @@ def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
                 return port
             except OSError:
                 continue
-    raise RuntimeError(f"No free port found in range {start_port}-{start_port + max_attempts}")
+    raise RuntimeError(
+        f"No free port found in range {start_port}-{start_port + max_attempts}"
+    )
 
 
 if __name__ == "__main__":
     import uvicorn
+
+    load_sessions_from_disk()
     port = find_free_port(8773)
-    print(f"🚀 Starting SES Think Tank on port {port}")
+    log.info("Starting SES Think Tank on port %d", port)
     uvicorn.run(app, host="0.0.0.0", port=port)

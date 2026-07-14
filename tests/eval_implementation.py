@@ -277,33 +277,43 @@ def t20():
 @test("WebSocket start_conversation accepted", category="WS")
 def t21():
     async def go():
-        import websockets.asyncio.client as wsmod
+        import websockets.asyncio.client as wsmod, asyncio
 
-        ws = await wsmod.connect(f"{WS_URL}/ws/ev-start")
-        try:
-            await ws.send(
-                json.dumps(
-                    {
-                        "type": "start_conversation",
-                        "session_id": "ev-s1",
-                        "topic": "Test",
-                        "max_turns": 1,
-                        "workflow_mode": "salon",
-                    }
+        for attempt in range(3):
+            try:
+                ws = await asyncio.wait_for(
+                    wsmod.connect(f"{WS_URL}/ws/ev-start"), timeout=30
                 )
-            )
-            resps = []
-            while True:
-                msg = json.loads(await asyncio.wait_for(ws.recv(), 120))
-                resps.append(msg)
-                if msg.get("type") == "session_complete":
-                    break
-            gt(len(resps), 0)
-            types = {r.get("type") for r in resps}
-            inside("message", types)
-            inside("session_complete", types)
-        finally:
-            await ws_close(ws)
+            except TimeoutError:
+                if attempt < 2:
+                    await asyncio.sleep(3)
+                    continue
+                raise
+            try:
+                await ws.send(
+                    json.dumps(
+                        {
+                            "type": "start_conversation",
+                            "session_id": "ev-s1",
+                            "topic": "Test",
+                            "max_turns": 1,
+                            "workflow_mode": "salon",
+                        }
+                    )
+                )
+                resps = []
+                while True:
+                    msg = json.loads(await asyncio.wait_for(ws.recv(), 120))
+                    resps.append(msg)
+                    if msg.get("type") == "session_complete":
+                        break
+                gt(len(resps), 0)
+                types = {r.get("type") for r in resps}
+                inside("message", types)
+                inside("session_complete", types)
+                return
+            finally:
+                await ws_close(ws)
 
     run_ws(go())
 

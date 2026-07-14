@@ -153,11 +153,11 @@ Think Tank A (Healthcare) ↔ Think Tank B (Policy) ↔ Think Tank C (Tech)
 - [x] Add proper error handling to WebSocket connections — Added JSON decode error handling, missing topic validation, conversation error catch, and generic exception handler.
 - [x] Add unit tests for persona generation and ASFE metrics — Created `tests/test_core.py` with 24 tests across 6 classes (personas, workflows, JSON extraction, reasoning extraction, ASFE metrics, integration).
 
-### Medium Priority
-- [ ] Add rate limiting to API endpoints
-- [ ] Add session persistence (save/load conversations)
-- [ ] Add logging for debugging (structured JSON logs)
-- [ ] Add health check endpoint
+### Medium Priority (All Complete ✅)
+- [x] **Add rate limiting** — In-memory rate limiter middleware (100 req/min per IP, returns 429).
+- [x] **Add session persistence** — Conversations saved as JSON in `sessions/`; loaded on startup; `GET /api/sessions/:id` and `DELETE /api/sessions/:id` endpoints.
+- [x] **Add logging for debugging** — Structured JSON logging via Python's `logging` module, output to `logs/app.log`.
+- [x] **Add health check endpoint** — `GET /health` returns status, uptime, memory_mb, active_sessions.
 
 ### Low Priority
 - [ ] Migrate from FastAPI to something lighter if needed

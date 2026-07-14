@@ -10,11 +10,11 @@
 
 ---
 
-## Phase 3: Intelligence (Next)
+## Phase 3: Intelligence
 
-### 3.1 Adaptive Team Composition
+### 3.1 Adaptive Team Composition ✅
 **Problem:** Right now team composition is static. Different domains need different teams.
-**Solution:** Auto-select team based on prompt domain/complexity.
+**Solution:** Auto-select team based on prompt domain/complexity using an LLM classifier.
 
 ```
 Prompt → Domain Classifier → Optimal Team Composition
@@ -24,10 +24,18 @@ Prompt → Domain Classifier → Optimal Team Composition
 ```
 
 **Implementation:**
-1. Add domain classifier prompt that categorizes incoming prompts
-2. Map domains to optimal team compositions (from ASFE results)
-3. Auto-select team or suggest to user
-4. Log composition choices for future optimization
+1. `classify_domain(topic, workflow_mode)` in `app.py:886` — makes a single LLM call to Qwen 3.6 via `call_llm_raw()` + `extract_json_from_text()` and returns domain, complexity, recommended_personas, excluded_personas, reasoning
+2. `POST /api/teams/analyze` endpoint — accepts `{"topic": "...", "workflow_mode": "..."}`, returns classifier output
+3. WebSocket `auto_team` flag — when `start_conversation` includes `"auto_team": true`, the server calls `classify_domain()` and overrides `persona_ids` with the recommended personas; sends a `team_recommendation` WS event with the analysis
+4. Web UI "Team Analysis" panel — "Analyze Team" button calls `/api/teams/analyze`, displays recommended personas with icons, domain/complexity badges, reasoning, and a "Use Recommended Team" button that starts a conversation with `auto_team: true`
+
+**Persona descriptions used in classifier prompt:**
+- rook: Systems architect, structured thinking. Best at: technology, policy, complex systems
+- elena: Empathy specialist, human-centered. Best at: mental_health, education, community
+- kael: Skeptic/critic, challenges assumptions. Best at: ethics, policy, finance (risk)
+- maya: Divergent thinker, creative connections. Best at: creative, education, technology
+- jax: Hype man, optimist. Best at: creative, technology (pitching), education
+- sage: Ethicist, wisdom. Best at: ethics, mental_health, healthcare, policy
 
 ### 3.2 Real-Time Synergy Dashboard
 **Problem:** Synergy/friction metrics are calculated post-hoc.

@@ -57,6 +57,47 @@
   .start-btn:hover { opacity: 0.9; transform: translateY(-1px); }
   .start-btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
 
+  /* Analyze team button */
+  .analyze-btn {
+    padding: 8px 16px; background: transparent; border: 1px solid var(--accent);
+    border-radius: 8px; color: var(--accent); font-weight: 500; cursor: pointer;
+    font-size: 13px; transition: all 0.2s; white-space: nowrap;
+  }
+  .analyze-btn:hover { background: var(--accent); color: white; }
+  .analyze-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Team analysis panel */
+  .team-analysis-panel {
+    grid-column: 1 / -1;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 16px 24px; display: none; animation: slideDown 0.3s ease;
+  }
+  @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 300px; } }
+  .team-analysis-content { max-width: 800px; margin: 0 auto; }
+  .team-analysis-header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+  .team-domain-badge {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    background: var(--accent); color: white;
+  }
+  .team-complexity-badge {
+    padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+  }
+  .team-personas { display: flex; gap: 8px; margin: 12px 0; flex-wrap: wrap; }
+  .team-persona-chip {
+    display: flex; align-items: center; gap: 6px; padding: 6px 12px;
+    border-radius: 8px; background: var(--surface2); border: 1px solid var(--border);
+    font-size: 13px; font-weight: 500;
+  }
+  .team-persona-chip.excluded { opacity: 0.4; text-decoration: line-through; }
+  .team-reasoning { font-size: 13px; color: var(--text-dim); line-height: 1.6; margin: 8px 0; }
+  .use-team-btn {
+    padding: 8px 20px; background: #22c55e; border: none; border-radius: 8px;
+    color: white; font-weight: 600; cursor: pointer; font-size: 13px; transition: all 0.2s;
+  }
+  .use-team-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  .team-loading { font-size: 13px; color: var(--text-dim); padding: 12px 0; }
+
   /* ─── LEFT PANEL: Personas ─── */
   .left-panel {
     background: var(--surface); border-right: 1px solid var(--border);
@@ -228,7 +269,25 @@
 
   <input type="text" class="topic-input" id="topicInput" placeholder="Enter a topic or task..." value="Can we build AI that genuinely sits with ambiguity instead of rushing to resolve it?">
 
+  <button class="analyze-btn" id="analyzeBtn" onclick="analyzeTeam()">🔍 Analyze Team</button>
+
   <button class="start-btn" id="startBtn" onclick="startConversation()">Start</button>
+</div>
+
+<!-- Team Analysis Panel -->
+<div class="team-analysis-panel" id="teamAnalysisPanel">
+  <div class="team-analysis-content">
+    <div class="team-analysis-header">
+      <div class="panel-title" style="margin:0;">Recommended Team</div>
+      <span class="team-domain-badge" id="teamDomain"></span>
+      <span class="team-complexity-badge" id="teamComplexity"></span>
+    </div>
+    <div class="team-personas" id="teamPersonas"></div>
+    <div class="team-reasoning" id="teamReasoning"></div>
+    <button class="use-team-btn" id="useTeamBtn" onclick="useRecommendedTeam()" style="display:none;">
+      Use Recommended Team
+    </button>
+  </div>
 </div>
 
 <!-- LEFT PANEL -->
@@ -389,6 +448,9 @@ function connectWS() {
         break;
       case 'session_complete':
         finishConversation(data);
+        break;
+      case 'team_recommendation':
+        if (data.analysis) renderTeamAnalysis(data.analysis);
         break;
     }
   };
@@ -608,6 +670,115 @@ function timeAgo(ts) {
   if (diff < 5) return 'now';
   if (diff < 60) return `${Math.floor(diff)}s ago`;
   return `${Math.floor(diff/60)}m ago`;
+}
+
+// ─── Team Analysis ───
+
+async function analyzeTeam() {
+  const topic = document.getElementById('topicInput').value;
+  if (!topic) return;
+
+  const panel = document.getElementById('teamAnalysisPanel');
+  panel.style.display = 'block';
+  document.getElementById('teamPersonas').innerHTML = '<div class="team-loading">Analyzing topic...</div>';
+  document.getElementById('teamReasoning').textContent = '';
+  document.getElementById('useTeamBtn').style.display = 'none';
+
+  try {
+    const resp = await fetch('/api/teams/analyze', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({topic, workflow_mode: workflowMode}),
+    });
+    const data = await resp.json();
+    renderTeamAnalysis(data);
+  } catch (e) {
+    document.getElementById('teamPersonas').innerHTML = '<div style="color:#ef4444;font-size:13px;">Analysis failed. Try again.</div>';
+  }
+}
+
+function renderTeamAnalysis(data) {
+  document.getElementById('teamDomain').textContent = data.domain || '—';
+  document.getElementById('teamComplexity').textContent = data.complexity || '—';
+
+  const container = document.getElementById('teamPersonas');
+  const chips = [];
+
+  const allPersonaMap = {};
+  personas.forEach(p => { allPersonaMap[p.id] = p; });
+
+  const recommended = data.recommended_personas || [];
+  const excluded = data.excluded_personas || [];
+
+  // Build personas lookup from server data if client hasn't loaded yet
+  const defaultIcons = {rook: '♟️', elena: '🌸', kael: '⚡', maya: '🔮', jax: '🔥', sage: '🌿'};
+  const defaultColors = {rook: '#6366f1', elena: '#ec4899', kael: '#f59e0b', maya: '#06b6d4', jax: '#ef4444', sage: '#10b981'};
+
+  personas.forEach(p => {
+    const isRecommended = recommended.includes(p.id);
+    const isExcluded = excluded.includes(p.id);
+    if (isRecommended || isExcluded) {
+      chips.push(`
+        <div class="team-persona-chip ${isExcluded ? 'excluded' : ''}"
+             style="${isExcluded ? '' : 'border-color:' + (defaultColors[p.id] || '#333') + '44;'}">
+          <span>${p.icon || defaultIcons[p.id] || '?'}</span>
+          <span>${p.name}</span>
+          ${isExcluded ? '<span style="font-size:10px;color:var(--text-dim);">(excluded)</span>' : ''}
+        </div>
+      `);
+    }
+  });
+
+  container.innerHTML = chips.join('');
+
+  document.getElementById('teamReasoning').textContent = data.reasoning || '';
+  document.getElementById('useTeamBtn').style.display = 'inline-block';
+}
+
+function useRecommendedTeam() {
+  const topic = document.getElementById('topicInput').value;
+  if (!topic) return;
+
+  // Set auto_team flag and start with recommended team
+  const panel = document.getElementById('teamAnalysisPanel');
+  panel.style.display = 'none';
+
+  // Reset
+  turnCount = 0;
+  speakers.clear();
+  currentPhase = '';
+  startTime = Date.now();
+  document.getElementById('chatArea').innerHTML = '';
+  document.getElementById('topicDisplay').textContent = topic;
+  document.getElementById('deliverableArea').innerHTML = `
+    <div class="deliverable-placeholder">
+      <div style="font-size:24px; margin-bottom:8px;">⏳</div>
+      In progress...
+    </div>`;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('statTurns').textContent = '0';
+  document.getElementById('statSpeakers').textContent = '0';
+  document.getElementById('statPhase').textContent = '—';
+
+  if (timerInterval) clearInterval(timerInterval);
+  timerInterval = setInterval(() => {
+    const s = Math.floor((Date.now() - startTime) / 1000);
+    document.getElementById('statTime').textContent = s < 60 ? `${s}s` : `${Math.floor(s/60)}m ${s%60}s`;
+  }, 1000);
+
+  if (workflowMode !== 'salon' && workflows[workflowMode]) {
+    renderPhaseBar(workflows[workflowMode].phases);
+  }
+
+  ws.send(JSON.stringify({
+    type: 'start_conversation',
+    session_id: 'web_' + Date.now(),
+    topic: topic,
+    personas: [],  // Will be overridden by auto_team
+    max_turns: workflows[workflowMode]?.max_turns || 30,
+    workflow_mode: workflowMode,
+    auto_team: true,
+  }));
 }
 
 // Init

@@ -883,6 +883,39 @@ def extract_json_from_text(text: str) -> Optional[dict]:
     return None
 
 
+# ─── DOMAIN CLASSIFIER (Phase 3.1) ──────────────────────────────────────────
+
+
+def classify_domain(topic: str, workflow_mode: str = "auto") -> dict:
+    """Classify a topic and recommend an optimal team composition."""
+    prompt = (
+        f"Pick 3-4 personas from ONLY: rook, elena, kael, maya, jax, sage.\n"
+        f"Topic: {topic}\n"
+        f"Return JSON: {{\"domain\":\"mental_health|healthcare|finance|education|technology|ethics|policy|creative|other\","
+        f"\"complexity\":\"low|medium|high\","
+        f"\"recommended_personas\":[\"elena\",\"sage\",\"rook\"],"
+        f"\"excluded_personas\":[\"jax\"],\"reasoning\":\"why these 3-4\"}}"
+    )
+
+    raw = call_llm_raw(
+        [{"role": "user", "content": prompt}],
+        temperature=0.3,
+        max_tokens=2048,
+    )
+
+    result = extract_json_from_text(raw.get("content", ""))
+    if not result:
+        result = extract_json_from_text(raw.get("reasoning_content", ""))
+
+    return result or {
+        "domain": "other",
+        "complexity": "medium",
+        "recommended_personas": ["rook", "elena", "kael", "maya", "jax", "sage"],
+        "excluded_personas": [],
+        "reasoning": "Fallback: using full team",
+    }
+
+
 def call_gemini(
     messages: List[Dict],
     model_id: str = "gemini-2.5-flash",
@@ -1690,6 +1723,27 @@ async def chat_with_persona(request: FastAPIRequest):
     }
 
 
+@app.post("/api/teams/analyze")
+async def teams_analyze(request: FastAPIRequest):
+    """Analyze a topic and recommend optimal team composition."""
+    body = await request.json()
+    topic = body.get("topic", "")
+    workflow_mode = body.get("workflow_mode", "auto")
+    if not topic:
+        return {
+            "error": "Missing topic",
+            "domain": "",
+            "complexity": "",
+            "recommended_personas": [],
+            "excluded_personas": [],
+            "reasoning": "",
+        }
+    result = await asyncio.get_event_loop().run_in_executor(
+        None, classify_domain, topic, workflow_mode
+    )
+    return result
+
+
 @app.get("/api/workflows")
 async def get_workflows():
     return WORKFLOWS
@@ -1803,6 +1857,25 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 persona_ids = msg.get("personas", [p["id"] for p in PERSONAS])
                 max_turns = msg.get("max_turns", 20)
                 workflow_mode = msg.get("workflow_mode", "salon")
+                auto_team = msg.get("auto_team", False)
+
+                if auto_team:
+                    try:
+                        loop = asyncio.get_event_loop()
+                        team_analysis = await loop.run_in_executor(
+                            None, classify_domain, topic, workflow_mode
+                        )
+                        recommended = team_analysis.get("recommended_personas", [])
+                        if recommended:
+                            persona_ids = recommended
+                            await websocket.send_json(
+                                {
+                                    "type": "team_recommendation",
+                                    "analysis": team_analysis,
+                                }
+                            )
+                    except Exception as e:
+                        log.warning("Auto-team classification failed: %s", e)
 
                 try:
                     session = await run_conversation(

@@ -1,55 +1,22 @@
 {
-  "session_id": "ev-s1",
-  "topic": "Auto-created session ev-s1 for testing",
+  "session_id": "syn-test-5bdff043",
+  "topic": "Test full history in summary",
   "messages": [
     {
-      "id": "b55adaf2",
+      "id": "7b5ae255",
       "persona_id": "rook",
       "persona_name": "Rook",
       "icon": "\u265f\ufe0f",
       "color": "#6366f1",
-      "content": "\" on its own line, then write your actual response.\" I have done the thinking. I will now output the response block.\u2705\n   Structure looks solid. Proceeds. \n   Output matches the refined draft. \n   *Self-Correction/Verification during thought:* \n   - Check paragraph count: 3. Good.\n   - Check teammate references: Kael, Jax, Elena explicitly mentioned with their roles/insights. Good.\n   - Check tone",
-      "timestamp": 1783994213.908546,
-      "phase": "",
-      "is_thinking": false
-    },
-    {
-      "id": "bf84b7cf",
-      "persona_id": "system",
-      "persona_name": "System",
-      "icon": "\ud83d\udc64",
-      "color": "#ffffff",
-      "content": "**[HUMAN INTERVENTION]** Please focus on feasibility",
-      "timestamp": 1783994228.4159288,
-      "phase": "",
-      "is_thinking": false
-    },
-    {
-      "id": "b8f7cbe9",
-      "persona_id": "system",
-      "persona_name": "System",
-      "icon": "\ud83d\udc64",
-      "color": "#ffffff",
-      "content": "**[HUMAN INTERVENTION]** Please focus on feasibility",
-      "timestamp": 1783994689.6583776,
-      "phase": "",
-      "is_thinking": false
-    },
-    {
-      "id": "3b296293",
-      "persona_id": "system",
-      "persona_name": "System",
-      "icon": "\ud83d\udc64",
-      "color": "#ffffff",
-      "content": "**[HUMAN INTERVENTION]** Please focus on feasibility",
-      "timestamp": 1783995191.2588692,
+      "content": "\"? Need to add it.\n   - Word count/length? Fits well within constraints.\n\n   One minor adjustment: Ensure the tone is sharp but not dismissive, and the teammate references feel natural, not forced. The draft does this. I'll refine slightly for precision and flow.\n\n   Refined version matches the draft closely. I'll output it now.\u2705\n   Structure:\n   Para",
+      "timestamp": 1783995252.8033772,
       "phase": "",
       "is_thinking": false
     }
   ],
-  "started_at": 1783994188.0065238,
+  "started_at": 1783995172.7181547,
   "active": false,
-  "turn_count": 4,
+  "turn_count": 1,
   "max_turns": 1,
   "evaluations": [],
   "workflow_mode": "salon",
@@ -240,76 +207,31 @@
   ],
   "whiteboard": {},
   "synergy_metrics": {
-    "cross_reference_rate": 0.25,
-    "friction_level": 0.0,
+    "cross_reference_rate": 0.0,
+    "friction_level": 1.0,
     "convergence_score": 0.0,
     "idea_diversity": 33,
     "participation_balance": 0.0,
     "participation_counts": {
       "rook": 1
     },
-    "health": "yellow"
+    "health": "red"
   },
   "metrics_history": [
     {
       "turn": 1,
       "metrics": {
-        "cross_reference_rate": 1.0,
-        "friction_level": 0.0,
+        "cross_reference_rate": 0.0,
+        "friction_level": 1.0,
         "convergence_score": 0.0,
         "idea_diversity": 33,
         "participation_balance": 0.0,
         "participation_counts": {
           "rook": 1
         },
-        "health": "yellow"
+        "health": "red"
       },
-      "timestamp": 1783994214.2058396
-    },
-    {
-      "turn": 2,
-      "metrics": {
-        "cross_reference_rate": 0.5,
-        "friction_level": 0.0,
-        "convergence_score": 0.0,
-        "idea_diversity": 33,
-        "participation_balance": 0.0,
-        "participation_counts": {
-          "rook": 1
-        },
-        "health": "yellow"
-      },
-      "timestamp": 1783994228.4159288
-    },
-    {
-      "turn": 3,
-      "metrics": {
-        "cross_reference_rate": 0.333,
-        "friction_level": 0.0,
-        "convergence_score": 0.0,
-        "idea_diversity": 33,
-        "participation_balance": 0.0,
-        "participation_counts": {
-          "rook": 1
-        },
-        "health": "yellow"
-      },
-      "timestamp": 1783994689.6583776
-    },
-    {
-      "turn": 4,
-      "metrics": {
-        "cross_reference_rate": 0.25,
-        "friction_level": 0.0,
-        "convergence_score": 0.0,
-        "idea_diversity": 33,
-        "participation_balance": 0.0,
-        "participation_counts": {
-          "rook": 1
-        },
-        "health": "yellow"
-      },
-      "timestamp": 1783995191.2588692
+      "timestamp": 1783995253.1056087
     }
   ]
 }

@@ -4,3 +4,32 @@
 {"timestamp": "2026-07-14T01:03:26.189536", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=23.9s workflow=salon"}
 {"timestamp": "2026-07-14T01:31:47.584418", "level": "ERROR", "logger": "ses-think-tank", "message": "WebSocket error for init-sess: Cannot call \"send\" once a close message has been sent."}
 {"timestamp": "2026-07-14T01:31:53.059662", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=25.7s workflow=salon"}
+{"timestamp": "2026-07-14T01:56:21.077227", "level": "ERROR", "logger": "ses-think-tank", "message": "WebSocket error for ev-s1: Cannot call \"send\" once a close message has been sent."}
+{"timestamp": "2026-07-14T01:56:54.206841", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=26.2s workflow=salon"}
+{"timestamp": "2026-07-14T01:57:49.892917", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-7f42a6d4 turns=1 time=31.3s workflow=salon"}
+{"timestamp": "2026-07-14T01:58:21.052820", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-2bd197da turns=1 time=29.1s workflow=salon"}
+{"timestamp": "2026-07-14T01:58:51.649975", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-97994635 turns=1 time=28.6s workflow=salon"}
+{"timestamp": "2026-07-14T01:59:22.109804", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-1c4c198e turns=1 time=28.4s workflow=salon"}
+{"timestamp": "2026-07-14T02:01:13.258278", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-12c1c727 turns=3 time=109.1s workflow=salon"}
+{"timestamp": "2026-07-14T02:02:00.978595", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-4ce33983 turns=2 time=45.7s workflow=salon"}
+{"timestamp": "2026-07-14T02:03:04.805544", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-a7d0ca9c turns=1 time=59.8s workflow=salon"}
+{"timestamp": "2026-07-14T02:03:34.184614", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-ba0ac3b8 turns=1 time=25.3s workflow=salon"}
+{"timestamp": "2026-07-14T02:04:00.911476", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-840a9451 turns=1 time=24.7s workflow=salon"}
+{"timestamp": "2026-07-14T02:05:39.179635", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-dc230908 turns=1 time=39.4s workflow=salon"}
+{"timestamp": "2026-07-14T02:06:35.073195", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-562d1c1a turns=1 time=53.9s workflow=salon"}
+{"timestamp": "2026-07-14T02:07:34.050975", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-14fdacf3 turns=1 time=56.9s workflow=salon"}
+{"timestamp": "2026-07-14T02:08:10.027862", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-3d6ae7ad turns=1 time=33.9s workflow=salon"}
+{"timestamp": "2026-07-14T02:09:56.265125", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-c02671d7 turns=3 time=104.2s workflow=salon"}
+{"timestamp": "2026-07-14T02:12:07.652482", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-f627a30d turns=2 time=129.4s workflow=salon"}
+{"timestamp": "2026-07-14T02:12:48.627296", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-745d6e60 turns=1 time=36.9s workflow=salon"}
+{"timestamp": "2026-07-14T02:14:13.106610", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-5bdff043 turns=1 time=80.4s workflow=salon"}
+{"timestamp": "2026-07-14T02:14:13.199225", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-b25bd4cb turns=1 time=51.7s workflow=salon"}
+{"timestamp": "2026-07-14T02:14:30.466578", "level": "ERROR", "logger": "ses-think-tank", "message": "LM Studio error: 500 Server Error: Internal Server Error for url: http://localhost:1234/v1/chat/completions"}
+{"timestamp": "2026-07-14T02:14:30.466578", "level": "ERROR", "logger": "ses-think-tank", "message": "LM Studio error: 500 Server Error: Internal Server Error for url: http://localhost:1234/v1/chat/completions"}
+{"timestamp": "2026-07-14T02:22:32.362814", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-64174326 turns=1 time=73.9s workflow=salon"}
+{"timestamp": "2026-07-14T02:23:04.533804", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-c4b99e71 turns=1 time=30.1s workflow=salon"}
+{"timestamp": "2026-07-14T02:25:40.752346", "level": "ERROR", "logger": "ses-think-tank", "message": "WebSocket error for syn-test-f245ce3e: Cannot call \"send\" once a close message has been sent."}
+{"timestamp": "2026-07-14T02:26:22.497885", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-b0375dd9 turns=2 time=73.9s workflow=salon"}
+{"timestamp": "2026-07-14T02:27:40.002823", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-8c922278 turns=1 time=73.4s workflow=salon"}
+{"timestamp": "2026-07-14T02:28:10.773808", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-b6aa0f52 turns=1 time=26.7s workflow=salon"}
+{"timestamp": "2026-07-14T02:29:29.390173", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=syn-test-4644ee39 turns=1 time=76.6s workflow=salon"}

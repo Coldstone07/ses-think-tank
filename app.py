@@ -756,7 +756,7 @@ WORKFLOWS = {
                 "id": "whiteboard",
                 "name": "Whiteboard",
                 "icon": "📋",
-                "description": "Rook + Maya pin the key ideas. Others react.",
+                "description": "Rook + Maya pin the key ideas on the whiteboard. Others react and vote.",
                 "turns": 4,
                 "speakers": ["rook", "maya", "elena", "kael"],
                 "speaker_instructions": {

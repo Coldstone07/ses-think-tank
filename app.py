@@ -37,6 +37,17 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 
+# Tool system
+from tools import (
+    TOOL_DEFINITIONS,
+    execute_tool,
+    extract_tool_calls,
+    extract_tool_calls_from_text,
+    build_tool_messages,
+    get_tool_instructions,
+    get_tool_call_instructions,
+)
+
 # ─── CONFIG ──────────────────────────────────────────────────────────────
 
 BASE_DIR = Path(__file__).parent
@@ -905,6 +916,150 @@ def call_llm_raw(
     raise RuntimeError("LM Studio failed after 3 retries")
 
 
+def call_llm_with_tools(
+    messages: List[Dict],
+    tools: List[Dict],
+    model_id: str = MODEL_ID,
+    temperature: float = 0.7,
+    max_tokens: int = 2048,
+    max_tool_rounds: int = 5,
+    on_tool_use=None,  # callback(tool_name, result) for WS broadcasting
+) -> dict:
+    """Call LM Studio with tool support.
+
+    Uses text-based TOOL_CALL: pattern (reliable for reasoning models).
+    Also handles native OpenAI-style tool_calls if the model supports them.
+
+    Returns {content, tool_uses: [{name, result, error, duration_ms}]}.
+    """
+    import time as _time
+
+    tool_uses = []
+    current_messages = list(messages)
+
+    for round_num in range(max_tool_rounds):
+        for attempt in range(3):
+            try:
+                resp = requests.post(
+                    f"{LM_STUDIO_URL}/chat/completions",
+                    json={
+                        "model": model_id,
+                        "messages": current_messages,
+                        "temperature": temperature,
+                        "max_tokens": max_tokens,
+                    },
+                    timeout=300,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                msg = data["choices"][0]["message"]
+                break
+
+            except requests.exceptions.ReadTimeout:
+                log.warning("LM Studio timeout (attempt %d/3), retrying...", attempt + 1)
+                _time.sleep(5)
+            except Exception as e:
+                log.error("LM Studio error: %s", e)
+                raise
+
+        else:
+            raise RuntimeError("LM Studio failed after 3 retries")
+
+        # Try native tool_calls first
+        native_tool_calls = msg.get("tool_calls", [])
+
+        # Also check text-based TOOL_CALL: pattern in reasoning + content
+        reasoning = msg.get("reasoning_content", "")
+        content = msg.get("content", "")
+        full_text = reasoning + "\n" + content
+
+        text_tool_calls = extract_tool_calls_from_text(full_text)
+
+        # Use whichever we found
+        has_tool_calls = bool(native_tool_calls or text_tool_calls)
+
+        if not has_tool_calls:
+            # No tool calls — return final response
+            if content:
+                # Strip any TOOL_CALL: lines from the output
+                clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", content).strip()
+                return {"content": clean or content, "tool_uses": tool_uses}
+            if reasoning:
+                clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", reasoning).strip()
+                extracted = extract_from_reasoning(reasoning)
+                return {"content": extracted or clean, "tool_uses": tool_uses}
+            return {"content": "", "tool_uses": tool_uses}
+
+        # Execute tool calls
+        if native_tool_calls:
+            # Native tool_calls path
+            for tc in native_tool_calls:
+                func = tc.get("function", {})
+                tool_name = func.get("name", "")
+                args_raw = func.get("arguments", "{}")
+                tool_call_id = tc.get("id", f"call_{tool_name}_{int(_time.time())}")
+
+                try:
+                    args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                except json.JSONDecodeError:
+                    args = {}
+
+                result = execute_tool(tool_name, args)
+                tool_uses.append(result)
+
+                if on_tool_use:
+                    on_tool_use(tool_name, result)
+
+                tool_msg = build_tool_messages(
+                    tool_name,
+                    str(result.get("result", "")),
+                    result.get("error"),
+                    tool_call_id,
+                )
+
+                current_messages.append(
+                    {
+                        "role": "assistant",
+                        "content": content,
+                        "tool_calls": native_tool_calls,
+                    }
+                )
+                current_messages.append(tool_msg)
+
+        else:
+            # Text-based TOOL_CALL: path
+            for tc in text_tool_calls:
+                tool_name = tc["name"]
+                args = tc["arguments"]
+                tool_call_id = tc["id"]
+
+                result = execute_tool(tool_name, args)
+                tool_uses.append(result)
+
+                if on_tool_use:
+                    on_tool_use(tool_name, result)
+
+                # Feed result back as a system message
+                result_text = str(result.get("result", ""))
+                error_text = result.get("error")
+                feedback = f"[TOOL RESULT for {tool_name}]"
+                if error_text:
+                    feedback += f"\nERROR: {error_text}"
+                if result_text:
+                    feedback += f"\nResult:\n{result_text[:3000]}"  # Cap at 3K chars
+
+                current_messages.append(
+                    {"role": "assistant", "content": full_text}
+                )
+                current_messages.append(
+                    {"role": "system", "content": feedback}
+                )
+
+    # Exhausted rounds — return best content
+    clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", content).strip()
+    return {"content": clean or content or extract_from_reasoning(reasoning), "tool_uses": tool_uses}
+
+
 def extract_json_from_text(text: str) -> Optional[dict]:
     """Extract JSON from text (handles reasoning model output)."""
     # Try direct parse first
@@ -1271,6 +1426,7 @@ class Message:
     timestamp: float
     phase: str = ""
     is_thinking: bool = False
+    tool_uses: List[Dict] = field(default_factory=list)
 
 
 @dataclass
@@ -2465,19 +2621,44 @@ Here's what's been discussed so far:
 
 {instruction}
 
+{get_tool_call_instructions()}
+
 Respond in your natural voice. Be specific, genuine, and build on what others have said. 2-4 paragraphs."""
 
-            response = await asyncio.get_event_loop().run_in_executor(
+            # Tool callback: broadcast to WebSocket
+            tool_ws = websocket
+            def on_tool_use(tool_name: str, result: dict):
+                nonlocal tool_ws
+                if tool_ws:
+                    asyncio.get_event_loop().run_until_complete(
+                        send_ws(tool_ws, "tool_use", {
+                            "persona_id": speaker["id"],
+                            "persona_name": speaker["name"],
+                            "icon": speaker["icon"],
+                            "tool": tool_name,
+                            "result": str(result.get("result", ""))[:500],
+                            "error": result.get("error"),
+                            "timestamp": time.time(),
+                        })
+                    )
+
+            result = await asyncio.get_event_loop().run_in_executor(
                 None,
-                call_llm,
+                call_llm_with_tools,
                 [
                     {"role": "system", "content": speaker["system_prompt"]},
                     {"role": "user", "content": response_prompt},
                 ],
+                TOOL_DEFINITIONS,
                 MODEL_ID,
                 0.85,
                 2048 if phase_id in ("synthesize", "finalize") else 512,
+                5,
+                on_tool_use,
             )
+
+            response = result.get("content", "")
+            tool_uses = result.get("tool_uses", [])
 
             msg = Message(
                 id=str(uuid.uuid4())[:8],
@@ -2488,6 +2669,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 content=response,
                 timestamp=time.time(),
                 phase=phase_id,
+                tool_uses=tool_uses,
             )
             session.messages.append(msg)
             session.turn_count += 1

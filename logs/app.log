@@ -432,3 +432,28 @@
 {"timestamp": "2026-07-14T03:24:57.008327", "level": "ERROR", "logger": "ses-think-tank", "message": "WebSocket error for ws-test-6cae9538: Cannot call \"send\" once a close message has been sent."}
 {"timestamp": "2026-07-14T05:47:20.311261", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session ev-s1"}
 {"timestamp": "2026-07-14T05:47:20.311261", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=26.6s workflow=salon"}
+{"timestamp": "2026-07-14T08:00:49.949839", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T08:01:31.327619", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins reloaded: 2 files, 0 errors"}
+{"timestamp": "2026-07-14T10:31:23.803692", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:37:26.419875", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.736069", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.768069", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.768069", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.799579", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.799579", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.799579", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.858089", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.858089", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.858089", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.858089", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.906107", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.906107", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.906107", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.906107", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:54:01.906107", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:55:46.045697", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:55:46.075015", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:55:46.075015", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:55:46.100017", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:55:46.100017", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
+{"timestamp": "2026-07-14T10:55:46.100017", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}

@@ -180,6 +180,32 @@
     background: var(--accent); color: white; font-weight: 600;
   }
 
+  /* Tool badges */
+  .msg-tools {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px;
+  }
+  .tool-badge {
+    display: inline-flex; align-items: center; gap: 3px;
+    padding: 2px 8px; border-radius: 6px; font-size: 11px;
+    background: rgba(99, 102, 241, 0.15); color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    cursor: default;
+  }
+  .tool-badge.error {
+    background: rgba(239, 68, 68, 0.15); color: #fca5a5;
+    border-color: rgba(239, 68, 68, 0.3);
+  }
+
+  /* Live tool-use toast */
+  .tool-toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    padding: 8px 16px; border-radius: 10px; font-size: 13px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    animation: fadeIn 0.3s ease; z-index: 100;
+    display: flex; align-items: center; gap: 8px;
+  }
+
   /* Typing indicator */
   .typing {
     display: flex; gap: 12px; align-items: center;
@@ -889,6 +915,10 @@ function connectWS() {
       case 'intervention':
         addHitlHistoryItem(data);
         break;
+      // Phase 4.2: Tool use events
+      case 'tool_use':
+        addToolUseIndicator(data);
+        break;
     }
   };
 }
@@ -963,6 +993,11 @@ function addMessage(msg) {
   const persona = personas.find(p => p.id === msg.persona_id) || {};
   const isRight = ['rook', 'maya'].includes(msg.persona_id);
 
+  // Tool badges
+  const toolBadges = (msg.tool_uses || []).map(t =>
+    `<span class="tool-badge" title="${t.error || t.result || ''}">🔧 ${t.tool}</span>`
+  ).join('');
+
   const div = document.createElement('div');
   div.className = `message ${isRight ? 'right' : 'left'}`;
   div.innerHTML = `
@@ -971,6 +1006,7 @@ function addMessage(msg) {
     </div>
     <div>
       <div class="msg-bubble">${renderMarkdown(msg.content)}</div>
+      ${toolBadges ? `<div class="msg-tools">${toolBadges}</div>` : ''}
       <div class="msg-meta">
         <span style="color:${msg.color}; font-weight:600;">${msg.persona_name}</span>
         ${msg.phase ? `<span class="msg-phase-tag">${msg.phase}</span>` : ''}
@@ -980,6 +1016,21 @@ function addMessage(msg) {
   `;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
+}
+
+// Phase 4.2: Live tool-use toast notifications
+function addToolUseIndicator(data) {
+  const toast = document.createElement('div');
+  toast.className = 'tool-toast';
+  const isError = !!data.error;
+  toast.innerHTML = `
+    <span>${data.icon || '🔧'}</span>
+    <strong>${data.persona_name}</strong> used
+    <code style="color: ${isError ? '#fca5a5' : '#a5b4fc'}">${data.tool}</code>
+    ${isError ? `<span style="color:#fca5a5">⚠️ ${data.error}</span>` : `<span style="color:var(--text-dim)">→ ${data.result || 'done'}</span>`}
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
 }
 
 function showPhase(data) {

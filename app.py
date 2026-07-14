@@ -104,6 +104,28 @@ LM_STUDIO_URL = os.environ.get("LM_STUDIO_URL", "http://localhost:1234/v1")
 MODEL_ID = os.environ.get("THINK_TANK_MODEL", "qwen/qwen3.6-27b")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
+# ─── PLUGIN SYSTEM (Phase 4.1) ────────────────────────────────────────────────────
+
+from plugins import (
+    plugin_store, get_all_personas, get_all_workflows,
+    PERSONA_REQUIRED, PERSONA_OPTIONAL
+)
+
+# Load plugins at startup
+_plugin_summary = plugin_store.load_all(str(BASE_DIR))
+log.info(f"Plugins loaded: {_plugin_summary['loaded']} files, {_plugin_summary['persona_count']} personas, {_plugin_summary['workflow_count']} workflows, {_plugin_summary['errors']} errors")
+
+
+def resolve_personas() -> list:
+    """Get all personas (built-in + plugins). Plugins override by id."""
+    return get_all_personas(PERSONAS)
+
+
+def resolve_workflows() -> dict:
+    """Get all workflows (built-in + plugins). Plugins add new entries."""
+    return get_all_workflows(WORKFLOWS)
+
+
 # ─── PERSONA DEFINITIONS ─────────────────────────────────────────────────────
 
 # ─── LIVING TEAM FRAMEWORK (LTF) ─────────────────────────────────────────────
@@ -583,7 +605,7 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
 
 # ─── SYNERGY METRICS CONSTANTS ──────────────────────────────────────────────────
 
-PERSONA_NAMES = {p["id"]: p["name"] for p in PERSONAS}
+PERSONA_NAMES = {p["id"]: p["name"] for p in resolve_personas()}
 
 DISAGREEMENT_KEYWORDS = {
     "but",
@@ -1473,7 +1495,7 @@ def extract_conversation_state(session: ConversationSession) -> Dict:
     """Extract current conversation state: topic, phase progress, dominant themes, etc."""
     messages = session.messages
     if not messages:
-        workflow = WORKFLOWS.get(session.workflow_mode, WORKFLOWS["salon"])
+        workflow = resolve_workflows().get(session.workflow_mode, resolve_workflows()["salon"])
         phases = workflow.get("phases", [])
         empty_phase_name = ""
         if not phases:
@@ -1668,7 +1690,7 @@ def extract_conversation_state(session: ConversationSession) -> Dict:
         topics_covered.sort(key=lambda x: -x["turn_count"])
 
     # Phase progress
-    workflow = WORKFLOWS.get(session.workflow_mode, WORKFLOWS["salon"])
+    workflow = resolve_workflows().get(session.workflow_mode, resolve_workflows()["salon"])
     phases = workflow.get("phases", [])
     turns_in_phase = 0
 
@@ -1724,7 +1746,7 @@ async def update_conversation_state(
 
 def get_phase_name(session: ConversationSession) -> str:
     """Get the current phase display name from workflow."""
-    workflow = WORKFLOWS.get(session.workflow_mode, WORKFLOWS["salon"])
+    workflow = resolve_workflows().get(session.workflow_mode, resolve_workflows()["salon"])
     phases = workflow.get("phases", [])
     if not phases:
         return "Freeform"
@@ -2177,12 +2199,12 @@ async def run_conversation(
     )
 
     # Select personas
-    selected_personas = [p for p in PERSONAS if p["id"] in persona_ids]
+    selected_personas = [p for p in resolve_personas() if p["id"] in persona_ids]
     if not selected_personas:
-        selected_personas = PERSONAS
+        selected_personas = resolve_personas()
     session.personas = selected_personas
 
-    workflow = WORKFLOWS.get(workflow_mode, WORKFLOWS["salon"])
+    workflow = resolve_workflows().get(workflow_mode, resolve_workflows()["salon"])
 
     if workflow_mode == "salon":
         return await run_salon(session, selected_personas, topic, websocket)
@@ -2706,7 +2728,7 @@ async def index():
 
 @app.get("/api/personas")
 async def get_personas():
-    return PERSONAS
+    return resolve_personas()
 
 
 from fastapi import Request as FastAPIRequest
@@ -2729,7 +2751,7 @@ async def chat_with_persona(request: FastAPIRequest):
     persona_id = body.get("persona_id")
     message = body.get("message")
 
-    persona = next((p for p in PERSONAS if p["id"] == persona_id), None)
+    persona = next((p for p in resolve_personas() if p["id"] == persona_id), None)
     if not persona:
         return {"error": f"Unknown persona: {persona_id}"}
 
@@ -2771,7 +2793,90 @@ async def teams_analyze(request: FastAPIRequest):
 
 @app.get("/api/workflows")
 async def get_workflows():
-    return WORKFLOWS
+    return resolve_workflows()
+
+
+# ─── PLUGIN API ENDPOINTS (Phase 4.1) ─────────────────────────────────────────
+
+@app.get("/api/plugins")
+async def get_plugins():
+    """List all loaded plugins with metadata."""
+    return plugin_store.info()
+
+
+@app.post("/api/plugins/reload")
+async def reload_plugins():
+    """Hot-reload all plugins from disk."""
+    summary = plugin_store.load_all(str(BASE_DIR))
+    log.info(f"Plugins reloaded: {summary['loaded']} files, {summary['errors']} errors")
+    # Update PERSONA_NAMES with merged personas
+    global PERSONA_NAMES
+    PERSONA_NAMES = {p["id"]: p["name"] for p in resolve_personas()}
+    return summary
+
+
+@app.get("/api/plugins/personas")
+async def get_plugin_personas():
+    """List plugin-defined personas only."""
+    return plugin_store.personas
+
+
+@app.get("/api/plugins/memory")
+async def get_plugin_memory():
+    """List plugin-defined memory rules."""
+    return plugin_store.memory_rules
+
+
+@app.post("/api/plugins/personas")
+async def create_plugin_persona(request: FastAPIRequest):
+    """Create a new persona plugin YAML file."""
+    body = await request.json()
+    errors = []
+    for field in PERSONA_REQUIRED:
+        if field not in body or not body[field]:
+            errors.append(f"Missing required field: {field}")
+    if errors:
+        return JSONResponse(status_code=400, content={"error": "; ".join(errors)})
+
+    persona_id = body["id"]
+    if not isinstance(persona_id, str) or not persona_id.replace("-", "").replace("_", "").isalnum():
+        return JSONResponse(status_code=400, content={"error": "Invalid persona id"})
+
+    fname = f"plugins/personas/{persona_id}.yaml"
+    fpath = str(BASE_DIR / fname)
+    try:
+        os.makedirs(str(BASE_DIR / "plugins/personas"), exist_ok=True)
+        with open(fpath, "w", encoding="utf-8") as f:
+            yaml.dump(body, f, default_flow_style=False, allow_unicode=True)
+        # Reload to pick up new persona
+        summary = plugin_store.load_all(str(BASE_DIR))
+        global PERSONA_NAMES
+        PERSONA_NAMES = {p["id"]: p["name"] for p in resolve_personas()}
+        return {"created": fpath, "reloaded": True, "summary": summary}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.delete("/api/plugins/personas/{persona_id}")
+async def delete_plugin_persona(persona_id: str):
+    """Delete a plugin persona YAML file."""
+    fpath = str(BASE_DIR / f"plugins/personas/{persona_id}.yaml")
+    if not os.path.exists(fpath):
+        return JSONResponse(status_code=404, content={"error": f"Persona plugin not found: {persona_id}"})
+    try:
+        os.remove(fpath)
+        summary = plugin_store.load_all(str(BASE_DIR))
+        global PERSONA_NAMES
+        PERSONA_NAMES = {p["id"]: p["name"] for p in resolve_personas()}
+        return {"deleted": fpath, "reloaded": True, "summary": summary}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/plugins/needs-reload")
+async def check_plugin_reload():
+    """Check if any plugin files have changed since last load."""
+    return {"needs_reload": plugin_store.needs_reload(str(BASE_DIR))}
 
 
 @app.get("/api/sessions/{session_id}")
@@ -3073,10 +3178,10 @@ async def create_session(
     persona_ids = (
         [p.strip() for p in personas.split(",")]
         if personas
-        else [p["id"] for p in PERSONAS]
+        else [p["id"] for p in resolve_personas()]
     )
     session_id = str(uuid.uuid4())[:8]
-    wf = WORKFLOWS.get(workflow_mode, WORKFLOWS["salon"])
+    wf = resolve_workflows().get(workflow_mode, resolve_workflows()["salon"])
     session = ConversationSession(
         session_id=session_id,
         topic=topic,
@@ -3107,10 +3212,10 @@ async def create_session_json(request: FastAPIRequest):
     body = await request.json()
     session_id = body.get("session_id", str(uuid.uuid4())[:8])
     topic = body.get("topic", "Discussion")
-    persona_ids = body.get("persona_ids", [p["id"] for p in PERSONAS])
+    persona_ids = body.get("persona_ids", [p["id"] for p in resolve_personas()])
     max_turns = body.get("max_turns", 20)
     workflow_mode = body.get("workflow_mode", "salon")
-    personas_map = {p["id"]: p for p in PERSONAS}
+    personas_map = {p["id"]: p for p in resolve_personas()}
     session = ConversationSession(
         session_id=session_id,
         topic=topic,
@@ -3150,7 +3255,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         {"type": "error", "message": "Missing topic"}
                     )
                     continue
-                persona_ids = msg.get("personas", [p["id"] for p in PERSONAS])
+                persona_ids = msg.get("personas", [p["id"] for p in resolve_personas()])
                 max_turns = msg.get("max_turns", 20)
                 workflow_mode = msg.get("workflow_mode", "salon")
                 auto_team = msg.get("auto_team", False)
@@ -3422,4 +3527,4 @@ if __name__ == "__main__":
     load_sessions_from_disk()
     port = find_free_port(8773)
     log.info("Starting SES Think Tank on port %d", port)
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port, reload=True, reload_dirs=["plugins"])

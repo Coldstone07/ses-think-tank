@@ -1,0 +1,17 @@
+# Custom workflow: Deep Dive — extended research mode
+id: deep_dive
+name: "Deep Dive"
+description: "Extended research mode for complex topics. Personas spend more turns exploring before converging."
+phases:
+  - name: "Exploration"
+    turns: 6
+    system_instruction: "Spend this phase freely exploring the topic from your unique perspective. Don't try to converge yet — surfacing diverse angles is the goal."
+  - name: "Synthesis"
+    turns: 4
+    system_instruction: "Now synthesize what you've learned from each other's perspectives. Find the deeper structure."
+  - name: "Convergence"
+    turns: 4
+    system_instruction: "Converge on actionable insights. What are the key takeaways? What should be done?"
+  - name: "Deliverable"
+    turns: 2
+    system_instruction: "Produce a final deliverable summarizing the discussion, key insights, and actionable recommendations."

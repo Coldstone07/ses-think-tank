@@ -1264,6 +1264,16 @@ class WhiteboardPin:
 
 
 @dataclass
+class InterventionRecord:
+    """Record of a human intervention in the conversation."""
+    id: str
+    mode: str  # steer, veto, amplify, pause, resume
+    message: str
+    target: str = ""  # persona_id or pin_id
+    timestamp: float = 0.0
+
+
+@dataclass
 class ConversationSession:
     session_id: str
     topic: str
@@ -1282,6 +1292,9 @@ class ConversationSession:
     synergy_metrics: Dict = field(default_factory=dict)
     metrics_history: List[Dict] = field(default_factory=list)
     conversation_state: Dict = field(default_factory=dict)
+    # Phase 4.3: HITL v2
+    interventions: List[InterventionRecord] = field(default_factory=list)
+    is_paused: bool = False
 
 
 # ─── SYNERGY METRICS ENGINE (Phase 3.3) ──────────────────────────────────────
@@ -1481,6 +1494,7 @@ def extract_conversation_state(session: ConversationSession) -> Dict:
             "topics_covered": [],
             "turns_in_phase": 0,
             "total_turns": session.turn_count,
+            "is_paused": session.is_paused,
         }
 
     stop_words = {
@@ -1694,6 +1708,7 @@ def extract_conversation_state(session: ConversationSession) -> Dict:
         "topics_covered": topics_covered[:10],
         "turns_in_phase": turns_in_phase if phases else session.turn_count,
         "total_turns": session.turn_count,
+        "is_paused": session.is_paused,
     }
 
 
@@ -2221,6 +2236,11 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
 
     # Main loop
     while session.turn_count < session.max_turns and session.active:
+        # Phase 4.3: Pause check — yield control while paused
+        if session.is_paused:
+            await asyncio.sleep(1)
+            continue
+
         persona_ids = [p["id"] for p in selected_personas]
         if session.messages:
             prev_id = session.messages[-1].persona_id
@@ -2389,6 +2409,10 @@ async def run_structured(
         for turn_in_phase in range(phase_turns):
             if session.turn_count >= session.max_turns:
                 break
+            # Phase 4.3: Pause check
+            if session.is_paused:
+                await asyncio.sleep(1)
+                continue
 
             # Pick speaker from phase's speaker list (round-robin within phase)
             speaker_id = phase_persona_ids[turn_in_phase % len(phase_persona_ids)]
@@ -2563,6 +2587,9 @@ def save_session_to_disk(session: ConversationSession):
         "whiteboard": {pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()},
         "synergy_metrics": session.synergy_metrics,
         "metrics_history": session.metrics_history,
+        # Phase 4.3: HITL v2
+        "interventions": [{"id": r.id, "mode": r.mode, "message": r.message, "target": r.target, "timestamp": r.timestamp} for r in session.interventions],
+        "is_paused": session.is_paused,
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
@@ -2597,6 +2624,10 @@ def load_sessions_from_disk():
                 session.whiteboard[pid] = WhiteboardPin(**pin_dict)
             session.synergy_metrics = data.get("synergy_metrics", {})
             session.metrics_history = data.get("metrics_history", [])
+            # Phase 4.3: HITL v2
+            for r in data.get("interventions", []):
+                session.interventions.append(InterventionRecord(**r))
+            session.is_paused = data.get("is_paused", False)
             active_sessions[session.session_id] = session
         except Exception as e:
             log.warning("Failed to load session %s: %s", path.name, e)
@@ -2905,39 +2936,118 @@ async def get_conversation_state(session_id: str):
     return extract_conversation_state(session)
 
 
-@app.post("/api/sessions/{session_id}/intervene")
-async def intervene_session(session_id: str, request: FastAPIRequest):
-    """Inject a human steering message into the conversation."""
+@app.get("/api/sessions/{session_id}/interventions")
+async def get_interventions(session_id: str):
+    """Return full intervention history for a session."""
     session = active_sessions.get(session_id)
     if not session:
-        return {"error": "Session not found"}
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Session not found")
+    return {
+        "session_id": session_id,
+        "is_paused": session.is_paused,
+        "interventions": [
+            {"id": r.id, "mode": r.mode, "message": r.message, "target": r.target, "timestamp": r.timestamp}
+            for r in session.interventions
+        ],
+        "total_interventions": len(session.interventions),
+    }
+
+
+@app.post("/api/sessions/{session_id}/intervene")
+async def intervene_session(session_id: str, request: FastAPIRequest):
+    """Human-in-the-Loop v2: structured intervention with modes."""
+    from fastapi import HTTPException
+    session = active_sessions.get(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
     body = await request.json()
+    mode = body.get("mode", "steer")  # steer, veto, amplify, pause, resume
     message = body.get("message", "")
-    if not message:
-        return {"error": "Missing message"}
+    target = body.get("target", "")
+    # Pause/resume are control actions — message is optional
+    if not message.strip() and mode not in ("pause", "resume"):
+        raise HTTPException(status_code=400, detail="Missing message")
+
+    # Pause/resume are control actions
+    if mode == "pause":
+        session.is_paused = True
+        record = InterventionRecord(
+            id=str(uuid.uuid4())[:8], mode=mode, message=message,
+            target=target, timestamp=time.time(),
+        )
+        session.interventions.append(record)
+        await broadcast_to_all("intervention", {
+            "type": "intervention", "mode": mode, "message": message,
+            "target": target, "id": record.id, "timestamp": record.timestamp,
+            "session_id": session_id,
+        })
+        return {"status": "paused", "mode": mode, "intervention_id": record.id}
+    if mode == "resume":
+        session.is_paused = False
+        record = InterventionRecord(
+            id=str(uuid.uuid4())[:8], mode=mode, message=message,
+            target=target, timestamp=time.time(),
+        )
+        session.interventions.append(record)
+        await broadcast_to_all("intervention", {
+            "type": "intervention", "mode": mode, "message": message,
+            "target": target, "id": record.id, "timestamp": record.timestamp,
+            "session_id": session_id,
+        })
+        return {"status": "resumed", "mode": mode, "intervention_id": record.id}
+
+    # Mode-specific prompt templates
+    mode_prompts = {
+        "steer": f"**[HUMAN STEER]** {message}. Please adjust the discussion accordingly.",
+        "veto": f"**[HUMAN VETO]** {message}. This direction has been rejected — move on.",
+        "amplify": f"**[HUMAN AMPLIFY]** {message}. Please expand on this point in detail.",
+    }
+    content = mode_prompts.get(mode, f"**[HUMAN INTERVENTION]** {message}")
 
     intervention_msg = Message(
         id=str(uuid.uuid4())[:8],
         persona_id="system",
-        persona_name="System",
+        persona_name="Human Operator",
         icon="👤",
         color="#ffffff",
-        content=f"**[HUMAN INTERVENTION]** {message}",
+        content=content,
         timestamp=time.time(),
     )
     session.messages.append(intervention_msg)
     session.turn_count += 1
+    record = InterventionRecord(
+        id=str(uuid.uuid4())[:8], mode=mode, message=message,
+        target=target, timestamp=time.time(),
+    )
+    session.interventions.append(record)
     await update_and_emit_metrics(None, session)
     save_session_to_disk(session)
 
     # Broadcast to all connected clients
     await broadcast_to_all("message", {"message": asdict(intervention_msg)})
+    await broadcast_to_all("intervention", {
+        "type": "intervention", "mode": mode, "message": message,
+        "target": target, "id": record.id, "timestamp": record.timestamp,
+        "session_id": session_id,
+    })
 
     return {
         "status": "intervened",
+        "mode": mode,
         "message": message,
         "turn": session.turn_count,
+        "intervention_id": record.id,
     }
+
+
+@app.get("/api/sessions/{session_id}/messages")
+async def get_messages(session_id: str):
+    """Return conversation messages for a session."""
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    return [asdict(m) for m in session.messages]
 
 
 @app.get("/api/sessions")
@@ -3140,23 +3250,69 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 ws_session = active_sessions.get(ws_session_id)
                 if ws_session:
                     intervention_text = msg.get("message", "")
+                    mode = msg.get("mode", "steer")
+                    target = msg.get("target", "")
                     if intervention_text:
+                        # Pause/resume control actions
+                        if mode == "pause":
+                            ws_session.is_paused = True
+                            record = InterventionRecord(
+                                id=str(uuid.uuid4())[:8], mode=mode, message=intervention_text,
+                                target=target, timestamp=time.time(),
+                            )
+                            ws_session.interventions.append(record)
+                            await broadcast_to_all("intervention", {
+                                "type": "intervention", "mode": mode, "message": intervention_text,
+                                "target": target, "id": record.id, "timestamp": record.timestamp,
+                                "session_id": ws_session_id,
+                            })
+                            continue
+                        if mode == "resume":
+                            ws_session.is_paused = False
+                            record = InterventionRecord(
+                                id=str(uuid.uuid4())[:8], mode=mode, message=intervention_text,
+                                target=target, timestamp=time.time(),
+                            )
+                            ws_session.interventions.append(record)
+                            await broadcast_to_all("intervention", {
+                                "type": "intervention", "mode": mode, "message": intervention_text,
+                                "target": target, "id": record.id, "timestamp": record.timestamp,
+                                "session_id": ws_session_id,
+                            })
+                            continue
+                        # Mode-specific content
+                        mode_prompts = {
+                            "steer": f"**[HUMAN STEER]** {intervention_text}. Please adjust the discussion accordingly.",
+                            "veto": f"**[HUMAN VETO]** {intervention_text}. This direction has been rejected — move on.",
+                            "amplify": f"**[HUMAN AMPLIFY]** {intervention_text}. Please expand on this point in detail.",
+                        }
+                        content = mode_prompts.get(mode, f"**[HUMAN INTERVENTION]** {intervention_text}")
                         intervention_msg = Message(
                             id=str(uuid.uuid4())[:8],
                             persona_id="system",
-                            persona_name="System",
+                            persona_name="Human Operator",
                             icon="👤",
                             color="#ffffff",
-                            content=f"**[HUMAN INTERVENTION]** {intervention_text}",
+                            content=content,
                             timestamp=time.time(),
                         )
                         ws_session.messages.append(intervention_msg)
                         ws_session.turn_count += 1
+                        record = InterventionRecord(
+                            id=str(uuid.uuid4())[:8], mode=mode, message=intervention_text,
+                            target=target, timestamp=time.time(),
+                        )
+                        ws_session.interventions.append(record)
                         await update_and_emit_metrics(websocket, ws_session)
                         save_session_to_disk(ws_session)
                         await broadcast_to_all(
                             "message", {"message": asdict(intervention_msg)}
                         )
+                        await broadcast_to_all("intervention", {
+                            "type": "intervention", "mode": mode, "message": intervention_text,
+                            "target": target, "id": record.id, "timestamp": record.timestamp,
+                            "session_id": ws_session_id,
+                        })
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})

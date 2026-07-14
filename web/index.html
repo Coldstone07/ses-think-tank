@@ -451,6 +451,63 @@
     font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;
   }
 
+  /* ─── HITL v2 (Phase 4.3) ─── */
+  .hitl-section {
+    border-bottom: 1px solid var(--border); padding: 12px 16px;
+  }
+  .hitl-controls {
+    display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap;
+  }
+  .hitl-mode-btn {
+    padding: 4px 10px; border-radius: 12px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--text); font-size: 11px; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .hitl-mode-btn:hover { background: var(--surface2); }
+  .hitl-mode-btn.active { border-color: #6366f1; background: #6366f122; color: #818cf8; }
+  .hitl-mode-btn.steer.active { border-color: #3b82f6; background: #3b82f622; color: #60a5fa; }
+  .hitl-mode-btn.veto.active { border-color: #ef4444; background: #ef444422; color: #f87171; }
+  .hitl-mode-btn.amplify.active { border-color: #f59e0b; background: #f59e0b22; color: #fbbf24; }
+  .hitl-mode-btn.pause.active { border-color: #8b5cf6; background: #8b5cf622; color: #a78bfa; }
+  .hitl-mode-btn.resume.active { border-color: #10b981; background: #10b98122; color: #34d399; }
+  .hitl-input-row {
+    display: flex; gap: 6px; margin-bottom: 8px;
+  }
+  .hitl-input {
+    flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text); font-size: 12px;
+  }
+  .hitl-input:focus { outline: none; border-color: #6366f1; }
+  .hitl-send {
+    padding: 6px 14px; border-radius: 6px; border: none; background: #6366f1;
+    color: #fff; font-size: 12px; cursor: pointer; font-weight: 600;
+  }
+  .hitl-send:hover { background: #4f46e5; }
+  .hitl-status {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px;
+    padding: 2px 8px; border-radius: 10px;
+  }
+  .hitl-status.paused { background: #8b5cf622; color: #a78bfa; }
+  .hitl-status.running { background: #10b98122; color: #34d399; }
+  .hitl-history {
+    max-height: 120px; overflow-y: auto; margin-top: 8px;
+  }
+  .hitl-history-item {
+    display: flex; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border2);
+    font-size: 11px; align-items: flex-start;
+  }
+  .hitl-history-mode {
+    flex-shrink: 0; padding: 1px 6px; border-radius: 4px; font-weight: 600;
+    text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px;
+  }
+  .hitl-history-mode.steer { background: #3b82f633; color: #60a5fa; }
+  .hitl-history-mode.veto { background: #ef444433; color: #f87171; }
+  .hitl-history-mode.amplify { background: #f59e0b33; color: #fbbf24; }
+  .hitl-history-mode.pause { background: #8b5cf633; color: #a78bfa; }
+  .hitl-history-mode.resume { background: #10b98133; color: #34d399; }
+  .hitl-history-msg { color: var(--text); line-height: 1.4; }
+  .hitl-history-time { color: var(--text-dim); flex-shrink: 0; font-size: 10px; }
+
   /* ─── SYNERGY DASHBOARD ─── */
   .synergy-section {
     border-bottom: 1px solid var(--border); padding: 10px 16px;
@@ -644,6 +701,28 @@
     </div>
   </div>
 
+  <!-- HITL v2 (Phase 4.3) -->
+  <div class="hitl-section" id="hitlSection" style="display:none;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+      <div class="panel-title" style="margin:0;">👤 Human Control</div>
+      <span class="hitl-status running" id="hitlStatus">● Running</span>
+    </div>
+    <div class="hitl-controls">
+      <button class="hitl-mode-btn steer active" data-mode="steer">🧭 Steer</button>
+      <button class="hitl-mode-btn veto" data-mode="veto">🛑 Veto</button>
+      <button class="hitl-mode-btn amplify" data-mode="amplify">🔊 Amplify</button>
+      <button class="hitl-mode-btn pause" data-mode="pause">⏸ Pause</button>
+      <button class="hitl-mode-btn resume" data-mode="resume">▶ Resume</button>
+    </div>
+    <div class="hitl-input-row">
+      <input type="text" class="hitl-input" id="hitlInput" placeholder="Intervention message...">
+      <button class="hitl-send" id="hitlSend">Send</button>
+    </div>
+    <div class="hitl-history" id="hitlHistory">
+      <div style="font-size:11px;color:var(--text-dim);text-align:center;padding:10px;">No interventions yet.</div>
+    </div>
+  </div>
+
   <div class="whiteboard-section" id="whiteboardSection" style="display:none;">
     <div class="whiteboard-header">
       <div class="panel-title" style="margin:0;">Whiteboard</div>
@@ -706,6 +785,10 @@ let currentSession = null;
 let turnCount = 0;
 let startTime = 0;
 let timerInterval = null;
+// Phase 4.3: HITL v2
+let hitlMode = 'steer';
+let hitlHistory = [];
+let isPaused = false;
 let speakers = new Set();
 let currentPhase = '';
 
@@ -802,6 +885,10 @@ function connectWS() {
       case 'memory_suggestion':
         showMemorySuggestion(data);
         break;
+      // Phase 4.3: HITL v2
+      case 'intervention':
+        addHitlHistoryItem(data);
+        break;
     }
   };
 }
@@ -841,6 +928,14 @@ function startConversation() {
 
   // Track session
   currentSession = 'web_' + Date.now();
+
+  // Phase 4.3: Show HITL panel, reset state
+  hitlHistory = [];
+  isPaused = false;
+  document.getElementById('hitlSection').style.display = 'block';
+  document.getElementById('hitlHistory').innerHTML = '<div style="font-size:11px;color:var(--text-dim);text-align:center;padding:10px;">No interventions yet.</div>';
+  document.getElementById('hitlStatus').className = 'hitl-status running';
+  document.getElementById('hitlStatus').textContent = '● Running';
 
   // Track session
   currentSession = 'web_' + Date.now();
@@ -1612,6 +1707,81 @@ document.getElementById('topicInput').addEventListener('input', () => {
 // WebSocket memory suggestion handler — add to ws.onmessage
 const origOnMessage = ws?.onmessage;
 // We hook into the connectWS function instead
+
+// ─── Phase 4.3: HITL v2 ───
+function sendHitlIntervention() {
+  const input = document.getElementById('hitlInput');
+  const message = input.value.trim();
+  if (!message || !currentSession) return;
+
+  ws.send(JSON.stringify({
+    type: 'intervene',
+    session_id: currentSession,
+    mode: hitlMode,
+    message: message,
+    target: '',
+  }));
+
+  // Update status for pause/resume
+  if (hitlMode === 'pause') {
+    isPaused = true;
+    document.getElementById('hitlStatus').className = 'hitl-status paused';
+    document.getElementById('hitlStatus').textContent = '⏸ Paused';
+  } else if (hitlMode === 'resume') {
+    isPaused = false;
+    document.getElementById('hitlStatus').className = 'hitl-status running';
+    document.getElementById('hitlStatus').textContent = '● Running';
+  }
+
+  // Add to local history
+  addHitlHistoryItem({
+    mode: hitlMode,
+    message: message,
+    target: '',
+    id: 'local_' + Date.now(),
+    timestamp: Date.now() / 1000,
+    session_id: currentSession,
+  });
+
+  input.value = '';
+}
+
+function addHitlHistoryItem(data) {
+  const container = document.getElementById('hitlHistory');
+  // Remove "no interventions" placeholder
+  if (container.querySelector('.memory-empty') || container.textContent.includes('No interventions')) {
+    container.innerHTML = '';
+  }
+
+  const time = new Date(data.timestamp * 1000);
+  const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+  const item = document.createElement('div');
+  item.className = 'hitl-history-item';
+  item.innerHTML = `
+    <span class="hitl-history-mode ${data.mode}">${data.mode}</span>
+    <span class="hitl-history-msg">${data.message}</span>
+    <span class="hitl-history-time">${timeStr}</span>
+  `;
+  container.appendChild(item);
+  container.scrollTop = container.scrollHeight;
+}
+
+// Mode selector buttons
+document.querySelectorAll('.hitl-mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.hitl-mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    hitlMode = btn.dataset.mode;
+  });
+});
+
+// Send button
+document.getElementById('hitlSend').addEventListener('click', sendHitlIntervention);
+// Enter key
+document.getElementById('hitlInput').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') sendHitlIntervention();
+});
 
 // ─── Init ───
 init();

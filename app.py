@@ -18,12 +18,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import os
 import random
 import re
 import time
 import uuid
 import yaml
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -577,6 +579,29 @@ WHITEBOARD: When you have an important insight, pin it to the whiteboard using p
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
 ]
+
+# ─── SYNERGY METRICS CONSTANTS ──────────────────────────────────────────────────
+
+PERSONA_NAMES = {p["id"]: p["name"] for p in PERSONAS}
+
+DISAGREEMENT_KEYWORDS = {
+    "but",
+    "disagree",
+    "however",
+    "wrong",
+    "risk",
+    "concern",
+    "however",
+    "problem",
+    "issue",
+    "flaw",
+    "fails",
+    "unlikely",
+    "danger",
+    "flawed",
+    "objection",
+    "caveat",
+}
 
 # ─── WORKFLOW DEFINITIONS ─────────────────────────────────────────────────────
 
@@ -1253,6 +1278,177 @@ class ConversationSession:
     deliverable: str = ""
     personas: List[Dict] = field(default_factory=list)
     whiteboard: Dict[str, WhiteboardPin] = field(default_factory=dict)
+    synergy_metrics: Dict = field(default_factory=dict)
+    metrics_history: List[Dict] = field(default_factory=list)
+
+
+# ─── SYNERGY METRICS ENGINE (Phase 3.3) ──────────────────────────────────────
+
+
+def calculate_synergy_metrics(session: ConversationSession) -> Dict:
+    """Calculate real-time synergy metrics from conversation messages.
+    Lightweight — runs in <50ms for typical session sizes.
+    """
+    messages = session.messages
+    if not messages:
+        return {
+            "cross_reference_rate": 0.0,
+            "friction_level": 0.0,
+            "convergence_score": 0.0,
+            "idea_diversity": 0,
+            "participation_balance": 0.0,
+            "health": "green",
+        }
+
+    total_turns = len(messages)
+
+    # Cross-reference rate: mentions of other persona names / total turns
+    cross_ref_count = 0
+    all_names = set(PERSONA_NAMES.values())
+    for msg in messages:
+        if msg.persona_id == "system":
+            continue
+        other_names = all_names - {msg.persona_name}
+        content_lower = msg.content.lower()
+        if any(name.lower() in content_lower for name in other_names):
+            cross_ref_count += 1
+    cross_reference_rate = cross_ref_count / max(1, total_turns)
+
+    # Friction level: turns with disagreement keywords / total turns
+    friction_count = 0
+    for msg in messages:
+        if msg.persona_id == "system":
+            continue
+        words = set(w.strip(".,!?;:()[]{}\"'-") for w in msg.content.lower().split())
+        if words & DISAGREEMENT_KEYWORDS:
+            friction_count += 1
+    friction_level = friction_count / max(1, total_turns)
+
+    # Convergence score: word overlap between consecutive turns
+    convergence_scores = []
+    prev_words: set = set()
+    for msg in messages:
+        if msg.persona_id == "system":
+            continue
+        curr_words = set(
+            w.strip(".,!?;:()[]{}\"'-").lower()
+            for w in msg.content.split()
+            if len(w) > 3 and not w.startswith(("http", "www"))
+        )
+        if prev_words and curr_words:
+            union = prev_words | curr_words
+            if union:
+                overlap = len(prev_words & curr_words) / len(union)
+                convergence_scores.append(overlap)
+        prev_words = curr_words
+    convergence_score = (
+        sum(convergence_scores) / len(convergence_scores) if convergence_scores else 0.0
+    )
+
+    # Idea diversity: count unique significant words across all turns
+    stop_words = {
+        "this",
+        "that",
+        "with",
+        "from",
+        "have",
+        "been",
+        "were",
+        "they",
+        "what",
+        "when",
+        "where",
+        "which",
+        "their",
+        "there",
+        "about",
+        "would",
+        "could",
+        "should",
+        "into",
+        "over",
+        "than",
+        "then",
+        "also",
+        "just",
+        "like",
+        "more",
+        "some",
+        "them",
+        "these",
+    }
+    all_words: set = set()
+    for msg in messages:
+        if msg.persona_id == "system":
+            continue
+        words = [
+            w.strip(".,!?;:()[]{}\"'-").lower()
+            for w in msg.content.split()
+            if len(w) > 3 and w.strip(".,!?;:()[]{}\"'-").lower() not in stop_words
+        ]
+        all_words.update(words)
+    idea_diversity = len(all_words)
+
+    # Participation balance: Shannon entropy of turn distribution (normalized)
+    persona_counts: Dict[str, int] = Counter()
+    for msg in messages:
+        if msg.persona_id == "system":
+            continue
+        persona_counts[msg.persona_id] += 1
+    total = len(messages) - sum(1 for m in messages if m.persona_id == "system")
+    entropy = 0.0
+    for count in persona_counts.values():
+        p = count / max(1, total)
+        if p > 0:
+            entropy -= p * math.log2(p)
+    max_entropy = math.log2(len(persona_counts)) if persona_counts else 1.0
+    participation_balance = entropy / max_entropy if max_entropy > 0 else 0.0
+
+    # Health color coding
+    if (
+        cross_reference_rate > 0.3
+        and friction_level < 0.5
+        and participation_balance > 0.6
+    ):
+        health = "green"
+    elif cross_reference_rate > 0.1 or participation_balance > 0.3:
+        health = "yellow"
+    else:
+        health = "red"
+
+    return {
+        "cross_reference_rate": round(cross_reference_rate, 3),
+        "friction_level": round(friction_level, 3),
+        "convergence_score": round(convergence_score, 3),
+        "idea_diversity": idea_diversity,
+        "participation_balance": round(participation_balance, 3),
+        "participation_counts": dict(persona_counts),
+        "health": health,
+    }
+
+
+async def update_and_emit_metrics(
+    websocket: Optional[WebSocket], session: ConversationSession
+):
+    """Calculate synergy metrics, store them, and emit via WebSocket."""
+    metrics = calculate_synergy_metrics(session)
+    session.synergy_metrics = metrics
+    session.metrics_history.append(
+        {
+            "turn": session.turn_count,
+            "metrics": metrics,
+            "timestamp": time.time(),
+        }
+    )
+    if websocket:
+        await send_ws(
+            websocket,
+            "synergy_metrics",
+            {
+                "metrics": metrics,
+                "turn": session.turn_count,
+            },
+        )
 
 
 # ─── CONVERSATION ENGINE ─────────────────────────────────────────────────────
@@ -1330,6 +1526,7 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
     if websocket:
         await send_ws(websocket, "message", {"message": asdict(msg)})
         await asyncio.sleep(0.3)
+    await update_and_emit_metrics(websocket, session)
 
     # Main loop
     while session.turn_count < session.max_turns and session.active:
@@ -1392,6 +1589,7 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
         if websocket:
             await send_ws(websocket, "message", {"message": asdict(msg)})
             await asyncio.sleep(0.5)
+        await update_and_emit_metrics(websocket, session)
 
         # Evaluator every 5 turns
         if session.turn_count >= 5 and session.turn_count % 5 == 0:
@@ -1427,6 +1625,10 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
                 "total_time": time.time() - session.started_at,
                 "whiteboard": {
                     pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()
+                },
+                "synergy_summary": {
+                    "metrics_history": session.metrics_history,
+                    "final_metrics": session.synergy_metrics,
                 },
             },
         )
@@ -1551,6 +1753,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
             if websocket:
                 await send_ws(websocket, "message", {"message": asdict(msg)})
                 await asyncio.sleep(0.5)
+            await update_and_emit_metrics(websocket, session)
 
         # Phase complete — extract any deliverable from last message
         if phase_id in ("synthesize", "finalize"):
@@ -1594,6 +1797,10 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 "deliverable": session.deliverable,
                 "whiteboard": {
                     pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()
+                },
+                "synergy_summary": {
+                    "metrics_history": session.metrics_history,
+                    "final_metrics": session.synergy_metrics,
                 },
             },
         )
@@ -1653,6 +1860,8 @@ def save_session_to_disk(session: ConversationSession):
         "deliverable": session.deliverable,
         "personas": session.personas,
         "whiteboard": {pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()},
+        "synergy_metrics": session.synergy_metrics,
+        "metrics_history": session.metrics_history,
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
@@ -1685,9 +1894,23 @@ def load_sessions_from_disk():
             wb_data = data.get("whiteboard", {})
             for pid, pin_dict in wb_data.items():
                 session.whiteboard[pid] = WhiteboardPin(**pin_dict)
+            session.synergy_metrics = data.get("synergy_metrics", {})
+            session.metrics_history = data.get("metrics_history", [])
             active_sessions[session.session_id] = session
         except Exception as e:
             log.warning("Failed to load session %s: %s", path.name, e)
+
+
+async def broadcast_to_all(event_type: str, data: Dict):
+    """Broadcast an event to all connected WebSocket clients."""
+    dead: List[str] = []
+    for cid, ws in active_connections.items():
+        try:
+            await send_ws(ws, event_type, data)
+        except Exception:
+            dead.append(cid)
+    for cid in dead:
+        active_connections.pop(cid, None)
 
 
 async def broadcast_whiteboard(session_id: str):
@@ -1943,6 +2166,61 @@ async def delete_pin(session_id: str, pin_id: str):
     return {"status": "deleted", "pin_id": pin_id}
 
 
+@app.get("/api/sessions/{session_id}/metrics")
+async def get_session_metrics(session_id: str):
+    """Return current synergy metrics for a session."""
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    if not session.synergy_metrics:
+        return calculate_synergy_metrics(session)
+    return session.synergy_metrics
+
+
+@app.get("/api/sessions/{session_id}/metrics/history")
+async def get_session_metrics_history(session_id: str):
+    """Return full turn-by-turn metrics history for a session."""
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    return session.metrics_history
+
+
+@app.post("/api/sessions/{session_id}/intervene")
+async def intervene_session(session_id: str, request: FastAPIRequest):
+    """Inject a human steering message into the conversation."""
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    body = await request.json()
+    message = body.get("message", "")
+    if not message:
+        return {"error": "Missing message"}
+
+    intervention_msg = Message(
+        id=str(uuid.uuid4())[:8],
+        persona_id="system",
+        persona_name="System",
+        icon="👤",
+        color="#ffffff",
+        content=f"**[HUMAN INTERVENTION]** {message}",
+        timestamp=time.time(),
+    )
+    session.messages.append(intervention_msg)
+    session.turn_count += 1
+    await update_and_emit_metrics(None, session)
+    save_session_to_disk(session)
+
+    # Broadcast to all connected clients
+    await broadcast_to_all("message", {"message": asdict(intervention_msg)})
+
+    return {
+        "status": "intervened",
+        "message": message,
+        "turn": session.turn_count,
+    }
+
+
 @app.get("/api/sessions")
 async def get_sessions():
     return [
@@ -2097,6 +2375,29 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         pin.comments.append(comment)
                         save_session_to_disk(ws_session)
                         await broadcast_whiteboard(ws_session_id)
+
+            elif msg.get("type") == "intervene":
+                ws_session_id = msg.get("session_id", "")
+                ws_session = active_sessions.get(ws_session_id)
+                if ws_session:
+                    intervention_text = msg.get("message", "")
+                    if intervention_text:
+                        intervention_msg = Message(
+                            id=str(uuid.uuid4())[:8],
+                            persona_id="system",
+                            persona_name="System",
+                            icon="👤",
+                            color="#ffffff",
+                            content=f"**[HUMAN INTERVENTION]** {intervention_text}",
+                            timestamp=time.time(),
+                        )
+                        ws_session.messages.append(intervention_msg)
+                        ws_session.turn_count += 1
+                        await update_and_emit_metrics(websocket, ws_session)
+                        save_session_to_disk(ws_session)
+                        await broadcast_to_all(
+                            "message", {"message": asdict(intervention_msg)}
+                        )
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})

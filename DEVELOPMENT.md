@@ -37,22 +37,7 @@ Prompt → Domain Classifier → Optimal Team Composition
 - jax: Hype man, optimist. Best at: creative, technology (pitching), education
 - sage: Ethicist, wisdom. Best at: ethics, mental_health, healthcare, policy
 
-### 3.2 Real-Time Synergy Dashboard
-**Problem:** Synergy/friction metrics are calculated post-hoc.
-**Solution:** Live dashboard showing team dynamics as they happen.
-
-**Metrics to track in real-time:**
-- Cross-reference rate (are agents building on each other?)
-- Friction level (productive tension vs. noise)
-- Convergence score (is the team reaching consensus?)
-- Idea diversity (are we exploring enough perspectives?)
-
-**UI:**
-- Live graph showing synergy/friction over time
-- Heatmap of which personas reference which
-- "Intervention" button for human to steer the conversation
-
-### 3.3 Persistent Whiteboard ✅
+### 3.2 Persistent Whiteboard ✅
 **Problem:** Ideas get lost in the conversation stream.
 **Solution:** Persistent whiteboard where agents pin ideas, vote, and evolve them.
 
@@ -89,6 +74,32 @@ WHITEBOARD:
 7. **UI**: Whiteboard panel in right sidebar with pin cards, vote buttons (✅/❌/⏳), expandable comments, status badges, and "Pin Idea" button
 8. **Persistence**: Whiteboard state saved to session JSON files and restored on load
 9. **Deliverable**: Whiteboard state included in `session_complete` event
+
+### 3.3 Real-Time Synergy Dashboard ✅
+**Problem:** Synergy/friction metrics are calculated post-hoc.
+**Solution:** Live dashboard showing team dynamics as they happen.
+
+**Metrics tracked in real-time (calculated each turn, <50ms):**
+- **cross_reference_rate**: Mentions of other persona names / total turns
+- **friction_level**: Turns with disagreement keywords (but, disagree, however, wrong, risk, concern) / total turns
+- **convergence_score**: Word overlap between consecutive turns
+- **idea_diversity**: Count of unique significant words across all turns
+- **participation_balance**: Shannon entropy of turn distribution (normalized 0-1)
+- **participation_counts**: Per-persona turn counts (for pie chart)
+- **health**: Green/yellow/red color coding based on thresholds
+
+**Implementation:**
+1. `calculate_synergy_metrics(session)` in `app.py:1288` — lightweight metrics engine; runs under `50ms` per turn
+2. `ConversationSession.synergy_metrics` and `metrics_history` fields at `app.py:1281-1282` — stores current metrics + turn-by-turn history
+3. `update_and_emit_metrics()` at `app.py:1430` — called after each message in `run_salon()` and `run_structured()`; stores metrics and emits WS event
+4. `synergy_metrics` WS event — emitted after each turn with `{metrics, turn}`
+5. `synergy_summary` WS event — included in `session_complete` payload with `{metrics_history, final_metrics}`
+6. `GET /api/sessions/:id/metrics` at `app.py:2169` — returns current synergy metrics
+7. `GET /api/sessions/:id/metrics/history` at `app.py:2180` — returns full turn-by-turn history
+8. `POST /api/sessions/:id/intervene` at `app.py:2189` — injects a human steering message (`{"message": "..."}`)
+9. WS `intervene` action at `app.py:2379` — same as REST endpoint but via WebSocket
+10. Synergy dashboard UI in `web/index.html` — sparkline graphs for cross-reference, friction, convergence; donut chart for participation; idea diversity counter; live update via WS; color-coded health badge; Intervene button + input field
+11. Metrics persisted to session JSON files and restored on load
 
 ### 3.4 Multi-Session Memory
 **Problem:** Each session starts fresh — no continuity.

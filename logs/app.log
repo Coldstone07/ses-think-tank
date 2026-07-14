@@ -2,3 +2,5 @@
 {"timestamp": "2026-07-14T00:24:34.081423", "level": "ERROR", "logger": "ses-think-tank", "message": "LM Studio error: 400 Client Error: Bad Request for url: http://localhost:1234/v1/chat/completions"}
 {"timestamp": "2026-07-14T00:35:49.088438", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=23.1s workflow=salon"}
 {"timestamp": "2026-07-14T01:03:26.189536", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=23.9s workflow=salon"}
+{"timestamp": "2026-07-14T01:31:47.584418", "level": "ERROR", "logger": "ses-think-tank", "message": "WebSocket error for init-sess: Cannot call \"send\" once a close message has been sent."}
+{"timestamp": "2026-07-14T01:31:53.059662", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=ev-s1 turns=1 time=25.7s workflow=salon"}

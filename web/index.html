@@ -315,6 +315,50 @@
     font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;
   }
 
+  /* ─── SYNERGY DASHBOARD ─── */
+  .synergy-section {
+    border-bottom: 1px solid var(--border); padding: 10px 16px;
+  }
+  .synergy-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+  }
+  .synergy-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 10px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .synergy-badge.green { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; }
+  .synergy-badge.yellow { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b44; }
+  .synergy-badge.red { background: #ef444422; color: #ef4444; border: 1px solid #ef444444; }
+  .synergy-body { display: flex; flex-direction: column; gap: 8px; }
+  .synergy-sparklines { display: flex; flex-direction: column; gap: 4px; }
+  .sparkline-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 4px 8px; background: var(--surface2); border-radius: 6px;
+  }
+  .sparkline-label { font-size: 10px; color: var(--text-dim); width: 80px; flex-shrink: 0; }
+  .sparkline-canvas { flex-shrink: 0; border-radius: 2px; }
+  .sparkline-value { font-size: 11px; font-weight: 600; min-width: 36px; text-align: right; }
+  .synergy-bottom { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+  .pie-container { position: relative; width: 64px; height: 64px; flex-shrink: 0; }
+  .pie-container canvas { width: 64px; height: 64px; }
+  .pie-label { font-size: 8px; color: var(--text-dim); text-align: center; margin-top: 2px; }
+  .idea-counter {
+    flex: 1; text-align: center; padding: 8px; background: var(--surface2); border-radius: 8px;
+  }
+  .idea-counter-value { font-size: 22px; font-weight: 700; color: var(--accent); }
+  .idea-counter-label { font-size: 9px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; }
+  .intervene-area { display: flex; gap: 4px; margin-top: 6px; }
+  .intervene-area input {
+    flex: 1; padding: 6px 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 11px; outline: none;
+  }
+  .intervene-area input:focus { border-color: var(--accent); }
+  .intervene-area button {
+    padding: 6px 12px; background: #f59e0b; border: none; border-radius: 6px;
+    color: white; font-weight: 600; cursor: pointer; font-size: 11px; transition: all 0.2s;
+  }
+  .intervene-area button:hover { opacity: 0.9; }
+  .intervene-area button:disabled { opacity: 0.4; cursor: not-allowed; }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -403,6 +447,46 @@
     <div class="stat">
       <div class="stat-value" id="statPhase">—</div>
       <div class="stat-label">Phase</div>
+    </div>
+  </div>
+
+  <div class="synergy-section" id="synergySection" style="display:none;">
+    <div class="synergy-header">
+      <div class="panel-title" style="margin:0;">Synergy Dashboard</div>
+      <span class="synergy-badge green" id="synergyBadge">● Healthy</span>
+    </div>
+    <div class="synergy-body">
+      <div class="synergy-sparklines">
+        <div class="sparkline-item">
+          <span class="sparkline-label">Cross-Reference</span>
+          <canvas class="sparkline-canvas" id="sparklineCrossRef" width="100" height="20"></canvas>
+          <span class="sparkline-value" id="valCrossRef" style="color:#22c55e;">0%</span>
+        </div>
+        <div class="sparkline-item">
+          <span class="sparkline-label">Friction</span>
+          <canvas class="sparkline-canvas" id="sparklineFriction" width="100" height="20"></canvas>
+          <span class="sparkline-value" id="valFriction" style="color:#f59e0b;">0%</span>
+        </div>
+        <div class="sparkline-item">
+          <span class="sparkline-label">Convergence</span>
+          <canvas class="sparkline-canvas" id="sparklineConvergence" width="100" height="20"></canvas>
+          <span class="sparkline-value" id="valConvergence" style="color:#6366f1;">0%</span>
+        </div>
+      </div>
+      <div class="synergy-bottom">
+        <div class="pie-container">
+          <canvas id="participationPie" width="64" height="64"></canvas>
+          <div class="pie-label">Participation</div>
+        </div>
+        <div class="idea-counter">
+          <div class="idea-counter-value" id="ideaDiversity">0</div>
+          <div class="idea-counter-label">Unique Ideas</div>
+        </div>
+      </div>
+      <div class="intervene-area">
+        <input type="text" id="interveneInput" placeholder="Steer the conversation..." disabled>
+        <button id="interveneBtn" disabled>Intervene</button>
+      </div>
     </div>
   </div>
 
@@ -534,6 +618,10 @@ function connectWS() {
         break;
       case 'session_complete':
         finishConversation(data);
+        if (data.synergy_summary) finishSynergyDashboard(data.synergy_summary);
+        break;
+      case 'synergy_metrics':
+        updateSynergyDashboard(data.metrics, data.turn);
         break;
       case 'team_recommendation':
         if (data.analysis) renderTeamAnalysis(data.analysis);
@@ -1001,6 +1089,151 @@ function showPinIdeaDialog() {
 }
 
 document.getElementById('pinIdeaBtn')?.addEventListener('click', showPinIdeaDialog);
+
+// ─── Synergy Dashboard ───
+
+let synergyHistory = { cross_reference_rate: [], friction_level: [], convergence_score: [] };
+
+function updateSynergyDashboard(metrics, turn) {
+  const section = document.getElementById('synergySection');
+  section.style.display = 'block';
+
+  // Health badge
+  const badge = document.getElementById('synergyBadge');
+  const healthMap = {green: '● Healthy', yellow: '● Moderate', red: '● Needs Attention'};
+  badge.textContent = healthMap[metrics.health] || '● Unknown';
+  badge.className = 'synergy-badge ' + (metrics.health || 'green');
+
+  // Store history for sparklines
+  synergyHistory.cross_reference_rate.push(metrics.cross_reference_rate);
+  synergyHistory.friction_level.push(metrics.friction_level);
+  synergyHistory.convergence_score.push(metrics.convergence_score);
+
+  // Update sparklines
+  drawSparkline('sparklineCrossRef', synergyHistory.cross_reference_rate, '#22c55e');
+  drawSparkline('sparklineFriction', synergyHistory.friction_level, '#f59e0b');
+  drawSparkline('sparklineConvergence', synergyHistory.convergence_score, '#6366f1');
+
+  // Update values
+  document.getElementById('valCrossRef').textContent = Math.round(metrics.cross_reference_rate * 100) + '%';
+  document.getElementById('valFriction').textContent = Math.round(metrics.friction_level * 100) + '%';
+  document.getElementById('valConvergence').textContent = Math.round(metrics.convergence_score * 100) + '%';
+
+  // Idea diversity
+  document.getElementById('ideaDiversity').textContent = metrics.idea_diversity || 0;
+
+  // Participation pie chart
+  if (metrics.participation_counts) {
+    drawPieChart('participationPie', metrics.participation_counts);
+  }
+
+  // Enable intervene
+  document.getElementById('interveneInput').disabled = false;
+  document.getElementById('interveneBtn').disabled = false;
+}
+
+function drawSparkline(canvasId, values, color) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas || values.length < 2) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const max = Math.max(1, ...values);
+  const min = Math.min(0, ...values);
+  const range = max - min || 1;
+  const step = w / (values.length - 1);
+
+  ctx.beginPath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+
+  values.forEach((v, i) => {
+    const x = i * step;
+    const y = h - ((v - min) / range) * (h - 2) - 1;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  // Fill area under curve
+  const lastIdx = values.length - 1;
+  ctx.lineTo(lastIdx * step, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fillStyle = color + '22';
+  ctx.fill();
+}
+
+function drawPieChart(canvasId, counts) {
+  const canvas = document.getElementById(canvasId);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  const cx = w / 2, cy = h / 2, outerR = Math.min(cx, cy) - 1, innerR = outerR * 0.55;
+  ctx.clearRect(0, 0, w, h);
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  if (total === 0) return;
+
+  const entries = Object.entries(counts).filter(([_, v]) => v > 0);
+  let startAngle = -Math.PI / 2;
+
+  entries.forEach(([pid, count]) => {
+    const sliceAngle = (count / total) * Math.PI * 2;
+    const color = personaColors[pid] || '#666';
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, outerR, startAngle, startAngle + sliceAngle);
+    ctx.arc(cx, cy, innerR, startAngle + sliceAngle, startAngle, true);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+
+    startAngle += sliceAngle;
+  });
+
+  // Center text
+  ctx.fillStyle = '#e0e0e8';
+  ctx.font = 'bold 10px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(total, cx, cy);
+}
+
+function finishSynergyDashboard(summary) {
+  // Finalize — could add a summary display
+  if (summary.final_metrics) {
+    updateSynergyDashboard(summary.final_metrics, 'final');
+  }
+}
+
+function intervene() {
+  const input = document.getElementById('interveneInput');
+  const message = input.value.trim();
+  if (!message) return;
+
+  if (ws && ws.readyState === WebSocket.OPEN && currentSession) {
+    ws.send(JSON.stringify({
+      type: 'intervene',
+      session_id: currentSession,
+      message: message,
+    }));
+    input.value = '';
+  } else if (currentSession) {
+    fetch(`/api/sessions/${currentSession}/intervene`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message}),
+    }).then(() => { input.value = ''; }).catch(() => {});
+  }
+}
+
+document.getElementById('interveneBtn')?.addEventListener('click', intervene);
+document.getElementById('interveneInput')?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') intervene();
+});
 
 // Init
 init();

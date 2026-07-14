@@ -328,6 +328,63 @@
   }
   .quick-topic:hover { background: var(--surface2); color: var(--text); }
 
+  /* ─── STATE TRACKER (Phase 4.2) ─── */
+  .state-section {
+    border-bottom: 1px solid var(--border); padding: 12px 16px;
+  }
+  .state-topic {
+    font-size: 13px; font-weight: 600; margin: 4px 0 8px; line-height: 1.4;
+  }
+  .state-workflow {
+    font-size: 11px; color: var(--text-dim); margin-bottom: 8px;
+  }
+  .state-phase-bar {
+    display: flex; align-items: center; gap: 4px; margin-bottom: 8px;
+    height: 24px; background: var(--surface2); border-radius: 6px; overflow: hidden;
+    position: relative;
+  }
+  .state-phase-fill {
+    height: 100%; background: var(--accent); border-radius: 6px;
+    transition: width 0.4s ease;
+  }
+  .state-phase-label {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; color: var(--text); text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  }
+  .state-active-speakers {
+    display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0;
+  }
+  .state-speaker-icon {
+    width: 28px; height: 28px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; border: 2px solid transparent;
+    transition: all 0.2s;
+  }
+  .state-speaker-icon.active { animation: pulseSpeaker 2s infinite; }
+  @keyframes pulseSpeaker {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+  }
+  .state-theme-badge {
+    display: inline-block; padding: 3px 10px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+    background: var(--accent); color: white; margin-bottom: 8px;
+  }
+  .state-topics-list {
+    max-height: 120px; overflow-y: auto; margin-top: 4px;
+  }
+  .state-topic-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 8px; font-size: 11px; color: var(--text-dim);
+    border-radius: 4px; margin-bottom: 2px;
+  }
+  .state-topic-item:hover { background: var(--surface2); }
+  .state-topic-count {
+    font-size: 10px; font-weight: 700; color: var(--accent);
+    background: var(--surface2); padding: 1px 6px; border-radius: 4px;
+  }
+
   /* ─── WHITEBOARD ─── */
   .whiteboard-section {
     border-bottom: 1px solid var(--border); padding: 12px 16px;
@@ -569,6 +626,24 @@
     </div>
   </div>
 
+  <div class="state-section" id="stateSection" style="display:none;">
+    <div class="panel-title">📍 State Tracker</div>
+    <div class="state-topic" id="stateTopic">—</div>
+    <div class="state-workflow" id="stateWorkflow">—</div>
+    <div class="state-phase-bar" id="statePhaseBar">
+      <div class="state-phase-fill" id="statePhaseFill" style="width:0%"></div>
+      <div class="state-phase-label" id="statePhaseLabel">0%</div>
+    </div>
+    <div class="panel-title" style="font-size:10px; margin-top:8px;">Active Speakers</div>
+    <div class="state-active-speakers" id="stateActiveSpeakers"></div>
+    <div class="panel-title" style="font-size:10px; margin-top:8px;">Dominant Theme</div>
+    <div><span class="state-theme-badge" id="stateTheme">—</span></div>
+    <div class="panel-title" style="font-size:10px; margin-top:8px;">Topics Covered</div>
+    <div class="state-topics-list" id="stateTopicsList">
+      <div style="font-size:11px; color:var(--text-dim); padding:4px 8px;">No topics yet.</div>
+    </div>
+  </div>
+
   <div class="whiteboard-section" id="whiteboardSection" style="display:none;">
     <div class="whiteboard-header">
       <div class="panel-title" style="margin:0;">Whiteboard</div>
@@ -717,6 +792,9 @@ function connectWS() {
         break;
       case 'team_recommendation':
         if (data.analysis) renderTeamAnalysis(data.analysis);
+        break;
+      case 'conversation_state':
+        renderStateTracker(data);
         break;
       case 'whiteboard_update':
         renderWhiteboard(data.whiteboard);
@@ -1070,6 +1148,58 @@ function useRecommendedTeam() {
     workflow_mode: workflowMode,
     auto_team: true,
   }));
+}
+
+// ─── State Tracker (Phase 4.2) ───
+
+function renderStateTracker(state) {
+  const section = document.getElementById('stateSection');
+  if (!state || (!state.current_topic && !state.dominant_theme)) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  // Current topic
+  document.getElementById('stateTopic').textContent = state.current_topic || '—';
+
+  // Workflow + phase name
+  const wfLabel = workflows[workflowMode]?.name || workflowMode;
+  document.getElementById('stateWorkflow').textContent = `${wfLabel} › ${state.phase_name || 'Freeform'}`;
+
+  // Phase progress bar
+  const pct = Math.round((state.phase_progress || 0) * 100);
+  document.getElementById('statePhaseFill').style.width = pct + '%';
+  document.getElementById('statePhaseLabel').textContent = pct + '%';
+
+  // Active speakers
+  const speakersContainer = document.getElementById('stateActiveSpeakers');
+  if (state.active_speakers && state.active_speakers.length > 0) {
+    speakersContainer.innerHTML = state.active_speakers.map(s => `
+      <div class="state-speaker-icon active" style="border-color:${s.color}; background:${s.color}22;"
+           title="${s.name}">
+        ${s.icon}
+      </div>
+    `).join('');
+  } else {
+    speakersContainer.innerHTML = '<span style="font-size:11px;color:var(--text-dim);">—</span>';
+  }
+
+  // Dominant theme
+  document.getElementById('stateTheme').textContent = state.dominant_theme || '—';
+
+  // Topics covered
+  const topicsContainer = document.getElementById('stateTopicsList');
+  if (state.topics_covered && state.topics_covered.length > 0) {
+    topicsContainer.innerHTML = state.topics_covered.map(t => `
+      <div class="state-topic-item">
+        <span>${escapeHtml(t.topic)}</span>
+        <span class="state-topic-count">${t.turn_count} turn${t.turn_count !== 1 ? 's' : ''}</span>
+      </div>
+    `).join('');
+  } else {
+    topicsContainer.innerHTML = '<div style="font-size:11px;color:var(--text-dim);padding:4px 8px;">No topics yet.</div>';
+  }
 }
 
 // ─── Whiteboard ───

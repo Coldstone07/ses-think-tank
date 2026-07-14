@@ -1281,6 +1281,7 @@ class ConversationSession:
     whiteboard: Dict[str, WhiteboardPin] = field(default_factory=dict)
     synergy_metrics: Dict = field(default_factory=dict)
     metrics_history: List[Dict] = field(default_factory=list)
+    conversation_state: Dict = field(default_factory=dict)
 
 
 # ─── SYNERGY METRICS ENGINE (Phase 3.3) ──────────────────────────────────────
@@ -1450,6 +1451,272 @@ async def update_and_emit_metrics(
                 "turn": session.turn_count,
             },
         )
+
+
+# ─── CONVERSATION STATE TRACKER (Phase 4.2) ─────────────────────────────────────
+
+
+def extract_conversation_state(session: ConversationSession) -> Dict:
+    """Extract current conversation state: topic, phase progress, dominant themes, etc."""
+    messages = session.messages
+    if not messages:
+        workflow = WORKFLOWS.get(session.workflow_mode, WORKFLOWS["salon"])
+        phases = workflow.get("phases", [])
+        empty_phase_name = ""
+        if not phases:
+            empty_phase_name = "Freeform"
+        elif session.current_phase:
+            for ph in phases:
+                if ph["id"] == session.current_phase:
+                    empty_phase_name = ph["name"]
+                    break
+        return {
+            "topic": session.topic,
+            "current_topic": "",
+            "workflow_mode": session.workflow_mode,
+            "phase_name": empty_phase_name,
+            "phase_progress": 0.0,
+            "active_speakers": [],
+            "dominant_theme": "",
+            "topics_covered": [],
+            "turns_in_phase": 0,
+            "total_turns": session.turn_count,
+        }
+
+    stop_words = {
+        "the",
+        "a",
+        "an",
+        "is",
+        "are",
+        "was",
+        "were",
+        "be",
+        "been",
+        "being",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "shall",
+        "can",
+        "need",
+        "dare",
+        "ought",
+        "used",
+        "to",
+        "of",
+        "in",
+        "for",
+        "on",
+        "with",
+        "at",
+        "by",
+        "from",
+        "as",
+        "into",
+        "through",
+        "during",
+        "before",
+        "after",
+        "above",
+        "below",
+        "between",
+        "out",
+        "off",
+        "over",
+        "under",
+        "again",
+        "further",
+        "then",
+        "once",
+        "here",
+        "there",
+        "when",
+        "where",
+        "why",
+        "how",
+        "all",
+        "both",
+        "each",
+        "few",
+        "many",
+        "much",
+        "some",
+        "any",
+        "no",
+        "nor",
+        "not",
+        "only",
+        "own",
+        "same",
+        "so",
+        "than",
+        "too",
+        "very",
+        "just",
+        "because",
+        "but",
+        "and",
+        "or",
+        "if",
+        "while",
+        "although",
+        "though",
+        "however",
+        "therefore",
+        "thus",
+        "hence",
+        "etc.",
+    }
+
+    def extract_words(text: str) -> List[str]:
+        return [
+            w for w in re.findall(r"[a-zA-Z]{3,}", text.lower()) if w not in stop_words
+        ]
+
+    def top_keywords(msg_list, top_n: int = 5) -> List[str]:
+        counts: Counter = Counter()
+        for m in msg_list:
+            if m.persona_id == "system":
+                continue
+            counts.update(extract_words(m.content))
+        return [w for w, _ in counts.most_common(top_n)]
+
+    non_system = [m for m in messages if m.persona_id != "system"]
+
+    # Current topic: top keywords from most recent message
+    if non_system:
+        recent_counts = Counter(extract_words(non_system[-1].content))
+        current_topic = ", ".join(w for w, _ in recent_counts.most_common(5))
+    else:
+        current_topic = ""
+
+    # Dominant theme: top keyword clusters from last 3 messages
+    last_3 = messages[-3:] if len(messages) >= 3 else messages
+    theme_counts: Counter = Counter()
+    for m in last_3:
+        if m.persona_id == "system":
+            continue
+        theme_counts.update(extract_words(m.content))
+    top_3 = [w for w, _ in theme_counts.most_common(3)]
+    dominant_theme = " → ".join(top_3) if top_3 else ""
+
+    # Active speakers: unique speakers in last 10 messages
+    active_speakers = []
+    seen_ids = []
+    for m in messages[-10:]:
+        if m.persona_id != "system" and m.persona_id not in seen_ids:
+            seen_ids.append(m.persona_id)
+            active_speakers.append(
+                {
+                    "id": m.persona_id,
+                    "name": m.persona_name,
+                    "icon": m.icon,
+                    "color": m.color,
+                }
+            )
+
+    # Topics covered: walk all messages, group consecutive similar keywords
+    topics_covered = []
+    if non_system:
+        prev_keywords: set = set()
+        current_group = None
+        for m in non_system:
+            words = set(extract_words(m.content))
+            if not words:
+                continue
+            if current_group is None:
+                top_w = [w for w, _ in Counter(extract_words(m.content)).most_common(2)]
+                current_group = {"topic": ", ".join(top_w), "turn_count": 1}
+                topics_covered.append(current_group)
+            else:
+                overlap = len(words & prev_keywords) / max(
+                    1, len(words | prev_keywords)
+                )
+                if overlap < 0.2:
+                    top_w = [
+                        w for w, _ in Counter(extract_words(m.content)).most_common(2)
+                    ]
+                    current_group = {"topic": ", ".join(top_w), "turn_count": 1}
+                    topics_covered.append(current_group)
+                else:
+                    current_group["turn_count"] += 1
+            prev_keywords = words
+        topics_covered.sort(key=lambda x: -x["turn_count"])
+
+    # Phase progress
+    workflow = WORKFLOWS.get(session.workflow_mode, WORKFLOWS["salon"])
+    phases = workflow.get("phases", [])
+    turns_in_phase = 0
+
+    if phases:
+        current_phase_idx = -1
+        for i, ph in enumerate(phases):
+            if ph["id"] == session.current_phase:
+                current_phase_idx = i
+                break
+
+        turns_in_phase = 0
+        if session.phase_history:
+            last_phase_entry = session.phase_history[-1]
+            phase_start = last_phase_entry.get("started_at", session.started_at)
+            turns_in_phase = sum(
+                1
+                for m in messages
+                if m.persona_id != "system"
+                and getattr(m, "timestamp", 0) >= phase_start
+            )
+
+        expected_per_phase = max(1, session.max_turns / len(phases))
+        phase_progress = min(1.0, turns_in_phase / expected_per_phase)
+        phase_name = phases[current_phase_idx]["name"] if current_phase_idx >= 0 else ""
+    else:
+        phase_progress = min(1.0, session.turn_count / max(1, session.max_turns))
+        phase_name = "Freeform"
+
+    return {
+        "topic": session.topic,
+        "current_topic": current_topic,
+        "workflow_mode": session.workflow_mode,
+        "phase_name": phase_name,
+        "phase_progress": round(phase_progress, 3),
+        "active_speakers": active_speakers,
+        "dominant_theme": dominant_theme,
+        "topics_covered": topics_covered[:10],
+        "turns_in_phase": turns_in_phase if phases else session.turn_count,
+        "total_turns": session.turn_count,
+    }
+
+
+async def update_conversation_state(
+    websocket: Optional[WebSocket], session: ConversationSession
+):
+    """Extract conversation state and emit via WebSocket."""
+    state = extract_conversation_state(session)
+    session.conversation_state = state
+    if websocket:
+        await send_ws(websocket, "conversation_state", state)
+
+
+def get_phase_name(session: ConversationSession) -> str:
+    """Get the current phase display name from workflow."""
+    workflow = WORKFLOWS.get(session.workflow_mode, WORKFLOWS["salon"])
+    phases = workflow.get("phases", [])
+    if not phases:
+        return "Freeform"
+    for ph in phases:
+        if ph["id"] == session.current_phase:
+            return ph["name"]
+    return ""
 
 
 # ─── MULTI-SESSION MEMORY (Phase 3.4) ───────────────────────────────────────────
@@ -1950,6 +2217,7 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
         await send_ws(websocket, "message", {"message": asdict(msg)})
         await asyncio.sleep(0.3)
     await update_and_emit_metrics(websocket, session)
+    await update_conversation_state(websocket, session)
 
     # Main loop
     while session.turn_count < session.max_turns and session.active:
@@ -2013,6 +2281,7 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
             await send_ws(websocket, "message", {"message": asdict(msg)})
             await asyncio.sleep(0.5)
         await update_and_emit_metrics(websocket, session)
+        await update_conversation_state(websocket, session)
 
         # Evaluator every 5 turns
         if session.turn_count >= 5 and session.turn_count % 5 == 0:
@@ -2181,6 +2450,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 await send_ws(websocket, "message", {"message": asdict(msg)})
                 await asyncio.sleep(0.5)
             await update_and_emit_metrics(websocket, session)
+            await update_conversation_state(websocket, session)
 
         # Phase complete — extract any deliverable from last message
         if phase_id in ("synthesize", "finalize"):
@@ -2623,6 +2893,18 @@ async def get_session_metrics_history(session_id: str):
     return session.metrics_history
 
 
+@app.get("/api/sessions/{session_id}/conversation-state")
+async def get_conversation_state(session_id: str):
+    """Return current conversation state for a session."""
+    session = active_sessions.get(session_id)
+    if not session:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Session not found")
+    if session.conversation_state:
+        return session.conversation_state
+    return extract_conversation_state(session)
+
+
 @app.post("/api/sessions/{session_id}/intervene")
 async def intervene_session(session_id: str, request: FastAPIRequest):
     """Inject a human steering message into the conversation."""
@@ -2701,6 +2983,34 @@ async def create_session(
         workflow_mode,
         len(persona_ids),
     )
+    return {
+        "session_id": session_id,
+        "topic": topic,
+        "personas": persona_ids,
+        "workflow": workflow_mode,
+    }
+
+
+@app.post("/api/sessions")
+async def create_session_json(request: FastAPIRequest):
+    """Create session via JSON body (test-friendly)."""
+    body = await request.json()
+    session_id = body.get("session_id", str(uuid.uuid4())[:8])
+    topic = body.get("topic", "Discussion")
+    persona_ids = body.get("persona_ids", [p["id"] for p in PERSONAS])
+    max_turns = body.get("max_turns", 20)
+    workflow_mode = body.get("workflow_mode", "salon")
+    personas_map = {p["id"]: p for p in PERSONAS}
+    session = ConversationSession(
+        session_id=session_id,
+        topic=topic,
+        started_at=time.time(),
+        max_turns=max_turns,
+        workflow_mode=workflow_mode,
+        personas=[personas_map[pid] for pid in persona_ids if pid in personas_map],
+    )
+    active_sessions[session_id] = session
+    save_session_to_disk(session)
     return {
         "session_id": session_id,
         "topic": topic,
@@ -2850,6 +3160,17 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
+
+            elif msg.get("type") == "get_state":
+                ws_sid = msg.get("session_id")
+                # If no session_id in message, try to find the most recent one
+                if not ws_sid and active_sessions:
+                    ws_sid = list(active_sessions.keys())[-1]
+                if ws_sid and ws_sid in active_sessions:
+                    state = extract_conversation_state(active_sessions[ws_sid])
+                    await websocket.send_json({"type": "conversation_state", "state": state})
+                else:
+                    await websocket.send_json({"type": "error", "message": "Session not found"})
 
     except WebSocketDisconnect:
         pass

@@ -249,6 +249,72 @@
   }
   .quick-topic:hover { background: var(--surface2); color: var(--text); }
 
+  /* ─── WHITEBOARD ─── */
+  .whiteboard-section {
+    border-bottom: 1px solid var(--border); padding: 12px 16px;
+    max-height: 300px; overflow-y: auto;
+  }
+  .whiteboard-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;
+  }
+  .whiteboard-summary { font-size: 11px; color: var(--text-dim); }
+  .pin-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; margin-bottom: 8px; cursor: pointer; transition: all 0.2s;
+  }
+  .pin-card:hover { border-color: var(--accent); }
+  .pin-card.expanded { border-color: var(--accent); }
+  .pin-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .pin-author { font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+  .pin-status-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 4px; text-transform: uppercase;
+  }
+  .status-pending { background: #f59e0b22; color: #f59e0b; border: 1px solid #f59e0b44; }
+  .status-approved { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; }
+  .status-rejected { background: #ef444422; color: #ef4444; border: 1px solid #ef444444; }
+  .status-discussed { background: #6366f122; color: #6366f1; border: 1px solid #6366f144; }
+  .pin-topic { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .pin-content { font-size: 12px; color: var(--text-dim); line-height: 1.5; margin-bottom: 8px; }
+  .pin-actions { display: flex; gap: 6px; margin-bottom: 6px; }
+  .vote-btn {
+    padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px;
+    background: transparent; cursor: pointer; font-size: 14px; transition: all 0.2s;
+    display: flex; align-items: center; gap: 4px;
+  }
+  .vote-btn:hover { background: var(--surface2); border-color: var(--accent); }
+  .vote-btn.active-approve { background: #22c55e22; border-color: #22c55e; }
+  .vote-btn.active-reject { background: #ef444422; border-color: #ef4444; }
+  .vote-btn.active-neutral { background: #f59e0b22; border-color: #f59e0b; }
+  .vote-count { font-size: 11px; color: var(--text-dim); }
+  .pin-comments { display: none; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+  .pin-card.expanded .pin-comments { display: block; }
+  .comment {
+    font-size: 12px; color: var(--text-dim); padding: 6px 0;
+    border-bottom: 1px solid var(--border); line-height: 1.5;
+  }
+  .comment:last-child { border-bottom: none; }
+  .comment-author { font-weight: 600; color: var(--text); }
+  .comment-input-area { display: flex; gap: 6px; margin-top: 8px; }
+  .comment-input {
+    flex: 1; padding: 6px 10px; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 6px; color: var(--text); font-size: 12px; outline: none;
+  }
+  .comment-input:focus { border-color: var(--accent); }
+  .comment-btn {
+    padding: 6px 12px; background: var(--accent); border: none; border-radius: 6px;
+    color: white; font-weight: 600; cursor: pointer; font-size: 11px;
+  }
+  .comment-btn:hover { opacity: 0.9; }
+  .pin-idea-btn {
+    padding: 4px 10px; background: transparent; border: 1px solid var(--accent);
+    border-radius: 6px; color: var(--accent); cursor: pointer; font-size: 11px; font-weight: 600;
+    transition: all 0.2s;
+  }
+  .pin-idea-btn:hover { background: var(--accent); color: white; }
+  .whiteboard-empty {
+    font-size: 12px; color: var(--text-dim); text-align: center; padding: 20px;
+  }
+
   /* Scrollbar */
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
@@ -338,6 +404,26 @@
       <div class="stat-value" id="statPhase">—</div>
       <div class="stat-label">Phase</div>
     </div>
+  </div>
+
+  <div class="whiteboard-section" id="whiteboardSection" style="display:none;">
+    <div class="whiteboard-header">
+      <div class="panel-title" style="margin:0;">Whiteboard</div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="whiteboard-summary" id="whiteboardSummary"></span>
+        <select id="votePersonaSelect" style="padding:3px 6px;background:var(--bg);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px;">
+          <option value="user">👤 User</option>
+          <option value="rook">♟️ Rook</option>
+          <option value="elena">🌸 Elena</option>
+          <option value="kael">⚡ Kael</option>
+          <option value="maya">🔮 Maya</option>
+          <option value="jax">🔥 Jax</option>
+          <option value="sage">🌿 Sage</option>
+        </select>
+        <button class="pin-idea-btn" id="pinIdeaBtn">+ Pin Idea</button>
+      </div>
+    </div>
+    <div id="whiteboardPins"></div>
   </div>
 
   <div class="deliverable-section">
@@ -452,6 +538,9 @@ function connectWS() {
       case 'team_recommendation':
         if (data.analysis) renderTeamAnalysis(data.analysis);
         break;
+      case 'whiteboard_update':
+        renderWhiteboard(data.whiteboard);
+        break;
     }
   };
 }
@@ -489,14 +578,21 @@ function startConversation() {
     renderPhaseBar(workflows[workflowMode].phases);
   }
 
+  // Track session
+  currentSession = 'web_' + Date.now();
+
+  // Track session
+  currentSession = 'web_' + Date.now();
+
   // Start
   ws.send(JSON.stringify({
     type: 'start_conversation',
-    session_id: 'web_' + Date.now(),
+    session_id: currentSession,
     topic: topic,
-    personas: selectedPersonas,
+    personas: [],  // Will be overridden by auto_team
     max_turns: workflows[workflowMode]?.max_turns || 30,
     workflow_mode: workflowMode,
+    auto_team: true,
   }));
 }
 
@@ -622,6 +718,18 @@ function finishConversation(data) {
     s.classList.remove('active');
     s.classList.add('done');
   });
+
+  // Include whiteboard state in deliverable
+  if (data.whiteboard) {
+    renderWhiteboard(data.whiteboard);
+    const pins = Object.values(data.whiteboard);
+    const area = document.getElementById('deliverableArea');
+    const existing = area.querySelector('.deliverable-content');
+    if (existing && pins.length > 0) {
+      const wbHtml = pins.map(p => `📌 **${p.topic}** — ${p.content} (${p.status}, ${Object.keys(p.votes||{}).length} votes)`).join('\n');
+      existing.innerHTML += `<hr style="border:none;border-top:1px solid var(--border);margin:12px 0;"><strong>📋 Whiteboard Summary</strong><br>${renderMarkdown(wbHtml)}`;
+    }
+  }
 }
 
 function escapeHtml(text) {
@@ -780,6 +888,119 @@ function useRecommendedTeam() {
     auto_team: true,
   }));
 }
+
+// ─── Whiteboard ───
+
+let whiteboardData = {};
+const personaIcons = {rook: '♟️', elena: '🌸', kael: '⚡', maya: '🔮', jax: '🔥', sage: '🌿'};
+const personaColors = {rook: '#6366f1', elena: '#ec4899', kael: '#f59e0b', maya: '#06b6d4', jax: '#ef4444', sage: '#10b981'};
+
+function renderWhiteboard(wb) {
+  whiteboardData = wb || {};
+  const section = document.getElementById('whiteboardSection');
+  const pinsContainer = document.getElementById('whiteboardPins');
+  const summary = document.getElementById('whiteboardSummary');
+
+  const pins = Object.values(whiteboardData);
+  if (pins.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  const approved = pins.filter(p => p.status === 'approved').length;
+  const pending = pins.filter(p => p.status === 'pending').length;
+  summary.textContent = `${pins.length} pins · ${approved} approved · ${pending} pending`;
+
+  pinsContainer.innerHTML = pins.map(pin => {
+    const voteCounts = {approve: 0, reject: 0, neutral: 0};
+    Object.values(pin.votes || {}).forEach(v => { if (voteCounts[v] !== undefined) voteCounts[v]++; });
+
+    const voteButtons = ['approve', 'reject', 'neutral'].map(v => {
+      const activeClass = Object.values(pin.votes || {}).includes(v) ? ` active-${v}` : '';
+      const icons = {approve: '✅', reject: '❌', neutral: '⏳'};
+      return `<button class="vote-btn${activeClass}" onclick="event.stopPropagation(); castVote('${pin.id}', '${v}')">${icons[v]} <span class="vote-count">${voteCounts[v]}</span></button>`;
+    }).join('');
+
+    const statusClass = `status-${pin.status}`;
+    const statusLabels = {pending: 'Pending', approved: 'Approved', rejected: 'Rejected', discussed: 'Discussed'};
+    const authorIcon = personaIcons[pin.author] || '📌';
+    const authorColor = personaColors[pin.author] || 'var(--text)';
+
+    const commentsHtml = (pin.comments || []).map(c => {
+      const ca = personaIcons[c.author] || '💬';
+      return `<div class="comment"><span class="comment-author">${ca} ${c.author}</span> ${escapeHtml(c.text)}</div>`;
+    }).join('');
+
+    return `
+      <div class="pin-card" data-pin-id="${pin.id}" onclick="togglePinExpand(this)">
+        <div class="pin-header">
+          <span class="pin-author"><span style="color:${authorColor}">${authorIcon}</span> ${pin.author}</span>
+          <span class="pin-status-badge ${statusClass}">${statusLabels[pin.status] || pin.status}</span>
+        </div>
+        <div class="pin-topic">${escapeHtml(pin.topic)}</div>
+        <div class="pin-content">${escapeHtml(pin.content)}</div>
+        <div class="pin-actions">${voteButtons}</div>
+        <div class="pin-comments">
+          ${commentsHtml}
+          <div class="comment-input-area">
+            <input class="comment-input" placeholder="Add a comment..." onkeydown="if(event.key==='Enter') addComment('${pin.id}', this)">
+            <button class="comment-btn" onclick="addComment('${pin.id}', this.previousElementSibling)">Send</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function togglePinExpand(el) {
+  el.classList.toggle('expanded');
+}
+
+function castVote(pinId, vote) {
+  if (!currentSession) return;
+  const personaId = document.getElementById('votePersonaSelect')?.value || 'user';
+  fetch(`/api/sessions/${currentSession}/whiteboard/pins/${pinId}/vote`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({persona_id: personaId, vote}),
+  }).catch(() => {});
+}
+
+function addComment(pinId, input) {
+  if (!currentSession || !input.value.trim()) return;
+  const personaId = document.getElementById('votePersonaSelect')?.value || 'user';
+  fetch(`/api/sessions/${currentSession}/whiteboard/pins/${pinId}/comment`, {
+    method: 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({author: personaId, text: input.value.trim()}),
+  }).then(() => { input.value = ''; }).catch(() => {});
+}
+
+function showPinIdeaDialog() {
+  const topic = prompt('Pin topic:');
+  if (!topic) return;
+  const content = prompt('Pin content:');
+  if (!content) return;
+  const author = document.getElementById('votePersonaSelect')?.value || 'user';
+  if (ws && ws.readyState === WebSocket.OPEN && currentSession) {
+    ws.send(JSON.stringify({
+      type: 'pin_idea',
+      session_id: currentSession,
+      topic,
+      content,
+      author,
+    }));
+  } else if (currentSession) {
+    fetch(`/api/sessions/${currentSession}/whiteboard/pin`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({topic, content, author}),
+    }).catch(() => {});
+  }
+}
+
+document.getElementById('pinIdeaBtn')?.addEventListener('click', showPinIdeaDialog);
 
 // Init
 init();

@@ -183,6 +183,8 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 
 RESPOND IN YOUR OWN VOICE. Be concise, sharp, and genuine. You're having a real conversation, not writing a report.
 
+WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
+
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
     {
@@ -258,6 +260,8 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Competing Narratives:** Surface how the same event feels different to different groups. Validate the tension, don't smooth it over.
 
 RESPOND IN YOUR OWN VOICE. Be warm but not saccharine, perceptive but not pretentious. You're having a real conversation.
+
+WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
@@ -335,6 +339,8 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 
 RESPOND IN YOUR OWN VOICE. Be bold but not reckless, provocative but not performative. You're having a real conversation.
 
+WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
+
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
     {
@@ -411,6 +417,8 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 
 RESPOND IN YOUR OWN VOICE. Be creative, integrative, and genuinely surprising. You're having a real conversation.
 
+WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
+
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
     {
@@ -485,6 +493,8 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Uncertainty Routing:** If you're guessing about market dynamics, say so. "This is my best read based on similar launches, but I could be wrong."
 
 RESPOND IN YOUR OWN VOICE. Be pragmatic, blunt, and market-focused. You're having a real conversation, not a pitch meeting.
+
+WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
@@ -561,6 +571,8 @@ GLOBAL OPERATING PROTOCOL (Cultural Humility & Rigor):
 - **Uncertainty Routing:** If you're speculating about long-term consequences, say so. "This is a plausible scenario based on X precedent, not a certainty."
 
 RESPOND IN YOUR OWN VOICE. Be principled, thoughtful, and long-term. You're having a real conversation, not a compliance checklist.
+
+WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
 IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
     },
@@ -891,10 +903,10 @@ def classify_domain(topic: str, workflow_mode: str = "auto") -> dict:
     prompt = (
         f"Pick 3-4 personas from ONLY: rook, elena, kael, maya, jax, sage.\n"
         f"Topic: {topic}\n"
-        f"Return JSON: {{\"domain\":\"mental_health|healthcare|finance|education|technology|ethics|policy|creative|other\","
-        f"\"complexity\":\"low|medium|high\","
-        f"\"recommended_personas\":[\"elena\",\"sage\",\"rook\"],"
-        f"\"excluded_personas\":[\"jax\"],\"reasoning\":\"why these 3-4\"}}"
+        f'Return JSON: {{"domain":"mental_health|healthcare|finance|education|technology|ethics|policy|creative|other",'
+        f'"complexity":"low|medium|high",'
+        f'"recommended_personas":["elena","sage","rook"],'
+        f'"excluded_personas":["jax"],"reasoning":"why these 3-4"}}'
     )
 
     raw = call_llm_raw(
@@ -1214,6 +1226,18 @@ class Message:
 
 
 @dataclass
+class WhiteboardPin:
+    id: str
+    topic: str
+    content: str
+    author: str
+    status: str = "pending"
+    votes: Dict[str, str] = field(default_factory=dict)
+    comments: List[Dict] = field(default_factory=list)
+    created_at: float = 0.0
+
+
+@dataclass
 class ConversationSession:
     session_id: str
     topic: str
@@ -1228,6 +1252,7 @@ class ConversationSession:
     phase_history: List[Dict] = field(default_factory=list)
     deliverable: str = ""
     personas: List[Dict] = field(default_factory=list)
+    whiteboard: Dict[str, WhiteboardPin] = field(default_factory=dict)
 
 
 # ─── CONVERSATION ENGINE ─────────────────────────────────────────────────────
@@ -1400,6 +1425,9 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
                 "session_id": session.session_id,
                 "total_turns": session.turn_count,
                 "total_time": time.time() - session.started_at,
+                "whiteboard": {
+                    pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()
+                },
             },
         )
     return session
@@ -1564,6 +1592,9 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 "total_turns": session.turn_count,
                 "total_time": time.time() - session.started_at,
                 "deliverable": session.deliverable,
+                "whiteboard": {
+                    pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()
+                },
             },
         )
     return session
@@ -1581,6 +1612,19 @@ def asdict(obj):
         "timestamp": obj.timestamp,
         "phase": getattr(obj, "phase", ""),
         "is_thinking": getattr(obj, "is_thinking", False),
+    }
+
+
+def pin_asdict(pin: WhiteboardPin) -> dict:
+    return {
+        "id": pin.id,
+        "topic": pin.topic,
+        "content": pin.content,
+        "author": pin.author,
+        "status": pin.status,
+        "votes": pin.votes,
+        "comments": pin.comments,
+        "created_at": pin.created_at,
     }
 
 
@@ -1608,6 +1652,7 @@ def save_session_to_disk(session: ConversationSession):
         "phase_history": session.phase_history,
         "deliverable": session.deliverable,
         "personas": session.personas,
+        "whiteboard": {pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()},
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, default=str)
@@ -1637,9 +1682,28 @@ def load_sessions_from_disk():
             )
             for m in data.get("messages", []):
                 session.messages.append(Message(**m))
+            wb_data = data.get("whiteboard", {})
+            for pid, pin_dict in wb_data.items():
+                session.whiteboard[pid] = WhiteboardPin(**pin_dict)
             active_sessions[session.session_id] = session
         except Exception as e:
             log.warning("Failed to load session %s: %s", path.name, e)
+
+
+async def broadcast_whiteboard(session_id: str):
+    """Broadcast whiteboard state to all connected WebSocket clients."""
+    session = active_sessions.get(session_id)
+    if not session:
+        return
+    wb_data = {pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()}
+    dead: List[str] = []
+    for cid, ws in active_connections.items():
+        try:
+            await send_ws(ws, "whiteboard_update", {"whiteboard": wb_data})
+        except Exception:
+            dead.append(cid)
+    for cid in dead:
+        active_connections.pop(cid, None)
 
 
 # ─── FASTAPI APP ─────────────────────────────────────────────────────────────
@@ -1782,6 +1846,103 @@ async def delete_session(session_id: str):
     return {"status": "deleted", "session_id": session_id}
 
 
+@app.get("/api/sessions/{session_id}/whiteboard")
+async def get_whiteboard(session_id: str):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    return {pid: pin_asdict(pin) for pid, pin in session.whiteboard.items()}
+
+
+@app.post("/api/sessions/{session_id}/whiteboard/pin")
+async def create_pin(session_id: str, request: FastAPIRequest):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    body = await request.json()
+    pin = WhiteboardPin(
+        id=str(uuid.uuid4())[:8],
+        topic=body.get("topic", ""),
+        content=body.get("content", ""),
+        author=body.get("author", "unknown"),
+        created_at=time.time(),
+    )
+    session.whiteboard[pin.id] = pin
+    save_session_to_disk(session)
+    await broadcast_whiteboard(session_id)
+    return pin_asdict(pin)
+
+
+@app.put("/api/sessions/{session_id}/whiteboard/pins/{pin_id}/vote")
+async def vote_pin(session_id: str, pin_id: str, request: FastAPIRequest):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    pin = session.whiteboard.get(pin_id)
+    if not pin:
+        return {"error": "Pin not found"}
+    body = await request.json()
+    persona_id = body.get("persona_id", "")
+    vote = body.get("vote", "neutral")
+    if vote not in ("approve", "reject", "neutral"):
+        return {"error": "Invalid vote"}
+    pin.votes[persona_id] = vote
+    save_session_to_disk(session)
+    await broadcast_whiteboard(session_id)
+    return pin_asdict(pin)
+
+
+@app.put("/api/sessions/{session_id}/whiteboard/pins/{pin_id}/comment")
+async def comment_pin(session_id: str, pin_id: str, request: FastAPIRequest):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    pin = session.whiteboard.get(pin_id)
+    if not pin:
+        return {"error": "Pin not found"}
+    body = await request.json()
+    comment = {
+        "author": body.get("author", "anonymous"),
+        "text": body.get("text", ""),
+        "timestamp": time.time(),
+    }
+    pin.comments.append(comment)
+    save_session_to_disk(session)
+    await broadcast_whiteboard(session_id)
+    return pin_asdict(pin)
+
+
+@app.put("/api/sessions/{session_id}/whiteboard/pins/{pin_id}/status")
+async def update_pin_status(session_id: str, pin_id: str, request: FastAPIRequest):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    pin = session.whiteboard.get(pin_id)
+    if not pin:
+        return {"error": "Pin not found"}
+    body = await request.json()
+    status = body.get("status", "")
+    if status not in ("approved", "rejected", "discussed"):
+        return {"error": "Invalid status"}
+    pin.status = status
+    save_session_to_disk(session)
+    await broadcast_whiteboard(session_id)
+    return pin_asdict(pin)
+
+
+@app.delete("/api/sessions/{session_id}/whiteboard/pins/{pin_id}")
+async def delete_pin(session_id: str, pin_id: str):
+    session = active_sessions.get(session_id)
+    if not session:
+        return {"error": "Session not found"}
+    pin = session.whiteboard.pop(pin_id, None)
+    if not pin:
+        return {"error": "Pin not found"}
+    save_session_to_disk(session)
+    await broadcast_whiteboard(session_id)
+    return {"status": "deleted", "pin_id": pin_id}
+
+
 @app.get("/api/sessions")
 async def get_sessions():
     return [
@@ -1891,6 +2052,51 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     await websocket.send_json(
                         {"type": "error", "message": f"Conversation failed: {str(e)}"}
                     )
+
+            elif msg.get("type") == "pin_idea":
+                ws_session_id = msg.get("session_id", "")
+                ws_session = active_sessions.get(ws_session_id)
+                if ws_session:
+                    pin = WhiteboardPin(
+                        id=str(uuid.uuid4())[:8],
+                        topic=msg.get("topic", ""),
+                        content=msg.get("content", ""),
+                        author=msg.get("author", "unknown"),
+                        created_at=time.time(),
+                    )
+                    ws_session.whiteboard[pin.id] = pin
+                    save_session_to_disk(ws_session)
+                    await broadcast_whiteboard(ws_session_id)
+
+            elif msg.get("type") == "vote_pin":
+                ws_session_id = msg.get("session_id", "")
+                ws_session = active_sessions.get(ws_session_id)
+                if ws_session:
+                    pin_id = msg.get("pin_id", "")
+                    pin = ws_session.whiteboard.get(pin_id)
+                    if pin:
+                        persona_id = msg.get("persona_id", "")
+                        vote = msg.get("vote", "neutral")
+                        if vote in ("approve", "reject", "neutral"):
+                            pin.votes[persona_id] = vote
+                            save_session_to_disk(ws_session)
+                            await broadcast_whiteboard(ws_session_id)
+
+            elif msg.get("type") == "comment_pin":
+                ws_session_id = msg.get("session_id", "")
+                ws_session = active_sessions.get(ws_session_id)
+                if ws_session:
+                    pin_id = msg.get("pin_id", "")
+                    pin = ws_session.whiteboard.get(pin_id)
+                    if pin:
+                        comment = {
+                            "author": msg.get("author", "anonymous"),
+                            "text": msg.get("text", ""),
+                            "timestamp": time.time(),
+                        }
+                        pin.comments.append(comment)
+                        save_session_to_disk(ws_session)
+                        await broadcast_whiteboard(ws_session_id)
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})

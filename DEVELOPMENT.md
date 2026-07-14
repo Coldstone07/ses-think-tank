@@ -52,7 +52,7 @@ Prompt → Domain Classifier → Optimal Team Composition
 - Heatmap of which personas reference which
 - "Intervention" button for human to steer the conversation
 
-### 3.3 Persistent Whiteboard
+### 3.3 Persistent Whiteboard ✅
 **Problem:** Ideas get lost in the conversation stream.
 **Solution:** Persistent whiteboard where agents pin ideas, vote, and evolve them.
 
@@ -74,10 +74,21 @@ WHITEBOARD:
 ```
 
 **Implementation:**
-1. Add whiteboard data structure to session state
-2. Agents can "pin" ideas with `pin_idea(topic, content)`
-3. Other agents vote (✅/❌/⏳) and add comments
-4. Final deliverable includes whiteboard state
+1. `WhiteboardPin` dataclass in `app.py:1208` — id, topic, content, author, status, votes, comments, created_at
+2. `ConversationSession.whiteboard` field — `Dict[str, WhiteboardPin]` stores all pins per session
+3. **API Endpoints** (all in `app.py`):
+   - `GET /api/sessions/:id/whiteboard` — returns full whiteboard state
+   - `POST /api/sessions/:id/whiteboard/pin` — create a new pin
+   - `PUT /api/sessions/:id/whiteboard/pins/:pin_id/vote` — cast a vote
+   - `PUT /api/sessions/:id/whiteboard/pins/:pin_id/comment` — add a comment
+   - `PUT /api/sessions/:id/whiteboard/pins/:pin_id/status` — update status
+   - `DELETE /api/sessions/:id/whiteboard/pins/:pin_id` — remove a pin
+4. **WebSocket actions**: `pin_idea`, `vote_pin`, `comment_pin` handlers in `websocket_endpoint`
+5. **Broadcast**: `broadcast_whiteboard()` sends `whiteboard_update` events to all connected clients on every change
+6. **Agent prompts updated**: Whiteboard instructions added to all 6 persona system prompts
+7. **UI**: Whiteboard panel in right sidebar with pin cards, vote buttons (✅/❌/⏳), expandable comments, status badges, and "Pin Idea" button
+8. **Persistence**: Whiteboard state saved to session JSON files and restored on load
+9. **Deliverable**: Whiteboard state included in `session_complete` event
 
 ### 3.4 Multi-Session Memory
 **Problem:** Each session starts fresh — no continuity.

@@ -10,12 +10,12 @@ Six AI personas with distinct **DNA** — core drives, blind spots, interaction 
 
 | Persona | Role | Core Drive | Blind Spot |
 |---------|------|------------|------------|
-| ♟️ **Rook** | The Architect | Build systems that work | Dismisses emotion as "noise" |
-| 🌸 **Elena** | The Empath | Amplify unheard voices | Over-validates without action |
-| ⚡ **Kael** | The Provocateur | Expose hidden power | Provokes for its own sake |
-| 🔮 **Maya** | The Synthesizer | Find hidden patterns | Overcomplicates with metaphors |
-| 🔥 **Jax** | The Market Realist | Ship what users adopt | Dismisses non-monetizable ideas |
-| 🌿 **Sage** | The Ethicist | Prevent harm at scale | Paralysis by analysis |
+| **Rook** | The Architect | Build systems that work | Dismisses emotion as "noise" |
+| **Elena** | The Empath | Amplify unheard voices | Over-validates without action |
+| **Kael** | The Provocateur | Expose hidden power | Provokes for its own sake |
+| **Maya** | The Synthesizer | Find hidden patterns | Overcomplicates with metaphors |
+| **Jax** | The Market Realist | Ship what users adopt | Dismisses non-monetizable ideas |
+| **Sage** | The Ethicist | Prevent harm at scale | Paralysis by analysis |
 
 ### Collaboration Protocols
 

@@ -21,12 +21,12 @@ Six AI personas with distinct **DNA** — core drives, blind spots, interaction 
 
 | Mode | Phases | Best For |
 |------|--------|----------|
-| 💬 **Salon** | Freeform debate | Open exploration |
-| 🔬 **Design Studio** | Diverge → Converge → Stress → Synthesize | Building detailed architectures |
-| 🚀 **Sprint** | Draft → Refine → Stress → Finalize | Shipping concrete deliverables |
-| 🧬 **Living Lab** | Debate → Whiteboard → Synthesis → Ship/Kill | Full team with cross-referencing and final vote |
+| **Salon** | Freeform debate | Open exploration |
+| **Design Studio** | Diverge → Converge → Stress → Synthesize | Building detailed architectures |
+| **Sprint** | Draft → Refine → Stress → Finalize | Shipping concrete deliverables |
+| **Living Lab** | Debate → Whiteboard → Synthesis → Ship/Kill | Full team with cross-referencing and final vote |
 
-## 🚀 Quick Start
+## Quick Start
 
 ```bash
 # Start the server

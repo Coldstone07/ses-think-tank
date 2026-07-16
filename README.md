@@ -152,4 +152,3 @@ MIT
 ## 🔗 Related Projects
 
 - [SES Benchmark](https://github.com/Coldstone07/SES-benchmark) — Emotional, Social, Spiritual evaluation framework
-- [Hermes Agent](https://hermes-agent.nousresearch.com) — Local AI agent platform

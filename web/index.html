@@ -828,6 +828,16 @@
     <div id="knowledgeList"></div>
   </div>
 
+  <!-- Session Intelligence Section -->
+  <div class="memory-section" id="intelligenceSection">
+    <div class="memory-header">
+      <div class="panel-title" style="margin:0;">🧠 Intelligence</div>
+      <span class="memory-count" id="intelligenceCount">Loading...</span>
+    </div>
+    <div id="intelligenceSummary"></div>
+    <div id="intelligenceInsights"></div>
+  </div>
+
   <div class="quick-topics">
     <div class="panel-title">Quick Topics</div>
     <div class="quick-topic" onclick="setTopic(this.textContent)">🔬 Why do reasoning models struggle with emotional presence?</div>
@@ -2005,6 +2015,46 @@ function viewKnowledge(personaId) {
 // Load tools and knowledge on start
 loadTools();
 loadKnowledge();
+
+// ─── SESSION INTELLIGENCE UI ─────────────────────────────────────────────
+
+function loadIntelligence() {
+  fetch('/api/intelligence/summary')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('intelligenceCount').textContent =
+        data.total_insights + ' insights, ' + data.total_connections + ' connections';
+      const summary = document.getElementById('intelligenceSummary');
+      if (data.total_insights === 0) {
+        summary.innerHTML = '<div class="memory-empty">Insights will appear after sessions complete.</div>';
+      } else {
+        let catHtml = Object.entries(data.by_category).map(([cat, count]) =>
+          '<span class="memory-card-mode">' + cat + ': ' + count + '</span>'
+        ).join(' ');
+        summary.innerHTML = '<div style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">' +
+          'Sessions with insights: ' + data.sessions_with_insights + '<br>' + catHtml + '</div>';
+      }
+      // Load recent insights
+      fetch('/api/intelligence/insights?limit=5')
+        .then(r => r.json())
+        .then(insights => {
+          const list = document.getElementById('intelligenceInsights');
+          if (!insights.length) return;
+          list.innerHTML = insights.map(ins => `
+            <div class="memory-card" style="cursor:default;">
+              <div class="memory-card-header">
+                <div class="memory-card-topic" style="font-size:11px;">${ins.session_topic}</div>
+                <span class="memory-card-mode">${ins.category}</span>
+              </div>
+              <div style="font-size:10px; color:var(--text-dim); margin-top:3px;">${ins.insight.substring(0, 150)}...</div>
+            </div>
+          `).join('');
+        });
+    })
+    .catch(() => document.getElementById('intelligenceCount').textContent = 'Error');
+}
+
+loadIntelligence();
 </script>
 </body>
 </html>

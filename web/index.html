@@ -792,6 +792,42 @@
     <div id="memoryResults"><div class="memory-empty">No sessions in memory yet.</div></div>
   </div>
 
+  <!-- Tool Plugins Section -->
+  <div class="memory-section" id="toolSection">
+    <div class="memory-header">
+      <div class="panel-title" style="margin:0;">🔧 Tools</div>
+      <span class="memory-count" id="toolCount">Loading...</span>
+    </div>
+    <div id="toolList"></div>
+    <div style="margin-top:8px; display:flex; gap:6px;">
+      <button onclick="showCreateToolForm()" style="flex:1; padding:6px; background:var(--accent); border:none; border-radius:6px; color:white; cursor:pointer; font-size:12px;">+ Add Tool</button>
+      <button onclick="reloadTools()" style="padding:6px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:12px;">↻ Reload</button>
+    </div>
+    <div id="createToolForm" style="display:none; margin-top:10px; padding:10px; background:var(--bg); border-radius:8px;">
+      <input id="toolName" placeholder="Tool name" style="width:100%; margin-bottom:6px; padding:6px 8px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+      <input id="toolDesc" placeholder="Description" style="width:100%; margin-bottom:6px; padding:6px 8px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+      <select id="toolExecType" style="width:100%; margin-bottom:6px; padding:6px 8px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px;">
+        <option value="python">Python</option>
+        <option value="shell">Shell</option>
+        <option value="http">HTTP</option>
+      </select>
+      <textarea id="toolCode" placeholder="Code / command / URL" rows="4" style="width:100%; margin-bottom:6px; padding:6px 8px; background:var(--surface); border:1px solid var(--border); border-radius:4px; color:var(--text); font-size:12px; resize:vertical;"></textarea>
+      <div style="display:flex; gap:6px;">
+        <button onclick="createTool()" style="flex:1; padding:6px; background:var(--accent); border:none; border-radius:6px; color:white; cursor:pointer; font-size:12px;">Create</button>
+        <button onclick="document.getElementById('createToolForm').style.display='none'" style="padding:6px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:6px; color:var(--text); cursor:pointer; font-size:12px;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Knowledge Section -->
+  <div class="memory-section" id="knowledgeSection">
+    <div class="memory-header">
+      <div class="panel-title" style="margin:0;">📚 Knowledge</div>
+      <span class="memory-count" id="knowledgeCount">Loading...</span>
+    </div>
+    <div id="knowledgeList"></div>
+  </div>
+
   <div class="quick-topics">
     <div class="panel-title">Quick Topics</div>
     <div class="quick-topic" onclick="setTopic(this.textContent)">🔬 Why do reasoning models struggle with emotional presence?</div>
@@ -1847,6 +1883,128 @@ connectWS();
     document.getElementById('memoryResults').innerHTML = '<div class="memory-empty">Type a topic above to search past sessions.</div>';
   } catch (e) { /* ignore */ }
 })();
+
+// ─── TOOL PLUGINS UI ───────────────────────────────────────────────────
+
+function loadTools() {
+  fetch('/api/tools')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('toolCount').textContent = data.total + ' tools loaded';
+      const list = document.getElementById('toolList');
+      if (!data.tools.length) {
+        list.innerHTML = '<div class="memory-empty">No tools loaded.</div>';
+        return;
+      }
+      list.innerHTML = data.tools.map(t => `
+        <div class="memory-card" style="cursor:default;">
+          <div class="memory-card-header">
+            <div class="memory-card-topic">${t.name}</div>
+            <span class="memory-card-mode">${t.execution_type || 'built-in'}</span>
+          </div>
+          <div style="font-size:11px; color:var(--text-dim); margin-top:4px;">${t.description}</div>
+          ${t.parameters.length ? `<div style="font-size:10px; color:var(--text-dim); margin-top:2px;">Params: ${t.parameters.join(', ')}</div>` : ''}
+        </div>
+      `).join('');
+    })
+    .catch(() => document.getElementById('toolCount').textContent = 'Error loading tools');
+}
+
+function showCreateToolForm() {
+  document.getElementById('createToolForm').style.display = 'block';
+}
+
+function createTool() {
+  const name = document.getElementById('toolName').value.trim();
+  const desc = document.getElementById('toolDesc').value.trim();
+  const execType = document.getElementById('toolExecType').value;
+  const code = document.getElementById('toolCode').value.trim();
+  if (!name || !desc || !code) { alert('Please fill in all fields'); return; }
+  const exec = {};
+  if (execType === 'python') exec.code = code;
+  else if (execType === 'shell') exec.command = code;
+  else exec.url = code;
+  fetch('/api/tools', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({name, description: desc, parameters: [], execution: exec, timeout: 30, sandbox: true}),
+  })
+  .then(r => r.json())
+  .then(() => {
+    document.getElementById('createToolForm').style.display = 'none';
+    document.getElementById('toolName').value = '';
+    document.getElementById('toolDesc').value = '';
+    document.getElementById('toolCode').value = '';
+    loadTools();
+  })
+  .catch(err => alert('Error: ' + err));
+}
+
+function reloadTools() {
+  fetch('/api/tools/reload', {method: 'POST'}).then(() => loadTools());
+}
+
+// ─── KNOWLEDGE UI ───────────────────────────────────────────────────────
+
+function loadKnowledge() {
+  fetch('/api/knowledge')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('knowledgeCount').textContent = data.length + ' personas with knowledge';
+      const list = document.getElementById('knowledgeList');
+      if (!data.length) {
+        list.innerHTML = '<div class="memory-empty">No knowledge loaded yet.</div>';
+        return;
+      }
+      list.innerHTML = data.map(p => `
+        <div class="memory-card" onclick="viewKnowledge('${p.persona_id}')" style="cursor:pointer;">
+          <div class="memory-card-header">
+            <div class="memory-card-topic">${p.persona_id}</div>
+            <span class="memory-card-mode">${p.book_count} books${p.has_memories ? ' + memories' : ''}</span>
+          </div>
+        </div>
+      `).join('');
+    })
+    .catch(() => document.getElementById('knowledgeCount').textContent = 'Error');
+}
+
+function viewKnowledge(personaId) {
+  fetch('/api/knowledge/' + personaId)
+    .then(r => r.json())
+    .then(data => {
+      let html = '<div style="margin-bottom:8px;"><button onclick="loadKnowledge()" style="background:var(--surface2); border:1px solid var(--border); border-radius:4px; color:var(--text); padding:4px 8px; cursor:pointer; font-size:11px;">← Back</button></div>';
+      if (data.books.length) {
+        html += '<div style="font-size:12px; font-weight:600; margin-bottom:6px;">📖 Books Read:</div>';
+        data.books.forEach(b => {
+          html += '<div class="memory-card" style="cursor:default; margin-bottom:6px;">';
+          html += '<div class="memory-card-topic" style="font-size:12px;">' + b.title + '</div>';
+          if (b.key_insights.length) {
+            html += '<div style="font-size:10px; color:var(--text-dim); margin-top:3px;">';
+            html += b.key_insights.slice(0, 3).map(i => '• ' + i).join('<br>');
+            html += '</div>';
+          }
+          html += '</div>';
+        });
+      }
+      if (data.memories.length) {
+        html += '<div style="font-size:12px; font-weight:600; margin:8px 0 6px;">🧠 Memories:</div>';
+        data.memories.slice(-10).forEach(m => {
+          html += '<div style="font-size:11px; padding:4px 0; border-bottom:1px solid var(--border);">';
+          html += '<span style="color:var(--text-dim);">' + (m.date || '') + '</span> ' + m.insight;
+          if (m.source) html += '<div style="font-size:10px; color:var(--text-dim);">from ' + m.source + '</div>';
+          html += '</div>';
+        });
+      }
+      if (!data.books.length && !data.memories.length) {
+        html += '<div class="memory-empty">No knowledge or memories yet.</div>';
+      }
+      document.getElementById('knowledgeList').innerHTML = html;
+    });
+}
+
+// Load tools and knowledge on start
+loadTools();
+loadKnowledge();
 </script>
 </body>
 </html>

@@ -122,17 +122,29 @@ from plugins import (
     PERSONA_REQUIRED, PERSONA_OPTIONAL,
     tool_store, validate_tool, tool_to_openai_schema,
     execute_tool_plugin,
-    load_knowledge, add_memory, extract_memories_from_conversation,
+    execute_tool_call, resolve_tools,
+    knowledge_store, load_knowledge, augment_system_prompt_with_knowledge,
+    add_memory, extract_memories_from_conversation,
     list_personas_with_knowledge,
 )
 
 # Load plugins at startup
 _plugin_summary = plugin_store.load_all(str(BASE_DIR))
-_tool_summary = tool_store.load_all(str(BASE_DIR))
-log.info(f"Plugins loaded: {_plugin_summary['loaded']} files, {_plugin_summary['persona_count']} personas, {_plugin_summary['workflow_count']} workflows, {_plugin_summary['errors']} errors")
-log.info(f"Tool plugins loaded: {_tool_summary['loaded']} tools, {_tool_summary['errors']} errors")
+print(f"[plugins] Loaded {_plugin_summary}")
 
+# Phase 4.3: Initialize tool store
+_tool_init = tool_store.load_from_dir(str(BASE_DIR / "plugins" / "tools"))
+print(f"[tools] Loaded {_tool_init['count']} tool plugins")
 
+# Phase 4.4: Session Intelligence
+from session_intelligence import (
+    init_intelligence_schema, extract_insights_from_session,
+    save_insights, build_session_graph, get_related_sessions,
+    smart_recall, get_session_insights, get_insight_summary,
+    build_recall_prompt,
+)
+init_intelligence_schema()
+print("[session_intelligence] Schema initialized")
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
     return get_all_personas(PERSONAS)
@@ -154,13 +166,18 @@ def resolve_tools() -> list:
     return built_in + plugin_schemas
 
 
-def augment_system_prompt(persona: dict) -> str:
-    """Augment a persona's system prompt with knowledge (books + memories)."""
+def augment_system_prompt(persona: dict, topic: str = "") -> str:
+    """Augment a persona's system prompt with knowledge (books + memories) and past insights."""
     prompt = persona["system_prompt"]
     persona_id = persona["id"]
     knowledge = load_knowledge(persona_id, str(BASE_DIR))
     if knowledge["knowledge_prompt"]:
         prompt = prompt + "\n\n" + knowledge["knowledge_prompt"]
+    # Phase 4.4: Inject relevant past insights
+    if topic:
+        recall = build_recall_prompt(topic)
+        if recall:
+            prompt = prompt + "\n\n" + recall
     return prompt
 
 
@@ -2113,6 +2130,22 @@ def populate_memory(session: ConversationSession):
 
     conn.commit()
     conn.close()
+
+    # Phase 4.4: Extract insights from conversation
+    try:
+        insights = extract_insights_from_session(session.session_id, session.messages)
+        if insights:
+            save_insights(session.session_id, insights)
+            log.info("Extracted %d insights for session %s", len(insights), session.session_id)
+    except Exception as e:
+        log.warning("Insight extraction failed for session %s: %s", session.session_id, e)
+
+    # Phase 4.4: Update session graph (background, limited scope)
+    try:
+        build_session_graph(top_n=30)
+    except Exception as e:
+        log.warning("Session graph update failed: %s", e)
+
     log.info("Memory populated for session %s", session.session_id)
 
 
@@ -2686,7 +2719,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 None,
                 call_llm_with_tools,
                 [
-                    {"role": "system", "content": augment_system_prompt(speaker)},
+                    {"role": "system", "content": augment_system_prompt(speaker, session.topic)},
                     {"role": "user", "content": response_prompt},
                 ],
                 resolve_tools(),
@@ -3198,6 +3231,64 @@ async def extract_persona_memories(persona_id: str):
     messages = body.get("messages", [])
     added = extract_memories_from_conversation(persona_id, messages, str(BASE_DIR))
     return {"extracted": len(added), "memories": added}
+
+
+# ─── Phase 4.4: Session Intelligence API ──────────────────────────────────
+
+@app.get("/api/intelligence/summary")
+async def intelligence_summary():
+    """Get summary stats about the intelligence system."""
+    return get_insight_summary()
+
+
+@app.get("/api/intelligence/insights")
+async def get_insights_api(session_id: str = None, limit: int = 20):
+    """Get insights, optionally filtered by session."""
+    if session_id:
+        return get_session_insights(session_id)
+    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute(
+        """SELECT i.*, ms.topic as session_topic
+           FROM insights i JOIN memory_sessions ms ON ms.session_id = i.session_id
+           ORDER BY i.relevance_score DESC, ms.started_at DESC LIMIT ?""",
+        (limit,)
+    )
+    results = [dict(row) for row in cur.fetchall()]
+    conn.close()
+    return results
+
+
+@app.get("/api/intelligence/related/{session_id}")
+async def get_related_sessions_api(session_id: str, limit: int = 5):
+    """Get sessions related to the given session."""
+    return get_related_sessions(session_id, limit)
+
+
+@app.get("/api/intelligence/recall")
+async def smart_recall_api(topic: str, limit: int = 5):
+    """Get relevant past insights for a topic."""
+    return smart_recall(topic, limit=limit)
+
+
+@app.post("/api/intelligence/extract")
+async def extract_insights_api(request: FastAPIRequest):
+    """Extract insights from a session transcript."""
+    body = await request.json()
+    session_id = body.get("session_id", "")
+    messages = body.get("messages", [])
+    insights = extract_insights_from_session(session_id, messages)
+    if insights:
+        save_insights(session_id, insights)
+    return {"extracted": len(insights), "insights": insights}
+
+
+@app.post("/api/intelligence/graph")
+async def rebuild_graph_api():
+    """Force rebuild the session graph."""
+    connections = build_session_graph(top_n=50)
+    return {"connections": len(connections), "graph": connections}
 
 
 @app.get("/api/sessions/{session_id}")

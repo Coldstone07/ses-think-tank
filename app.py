@@ -223,6 +223,16 @@ from export import (
 )
 print("[export] Export module loaded")
 
+# Phase 5.3: Deeper Intelligence
+from intelligence import (
+    init_intelligence_schema, generate_session_embeddings,
+    semantic_search, synthesize_across_sessions,
+    generate_knowledge_from_sessions, get_persona_knowledge,
+    compute_quality_trend, get_quality_overview,
+)
+init_intelligence_schema()
+print("[intelligence] Deeper intelligence module loaded")
+
 
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
@@ -3633,6 +3643,60 @@ async def unpublish_session_api(session_id: str, current_user: dict = Depends(ge
             unpublish_session(s["share_id"], current_user["user_id"])
             return {"status": "ok", "unpublished": s["share_id"]}
     raise HTTPException(status_code=404, detail="No active share found for this session")
+
+
+# ─── Phase 5.3: Deeper Intelligence API ──────────────────────────────────────
+
+@app.get("/api/intelligence/search")
+async def search_sessions_api(q: str, limit: int = 10, min_score: float = 0.1):
+    """Semantic search across all sessions."""
+    results = semantic_search(q, limit=limit, min_score=min_score)
+    return results
+
+
+@app.post("/api/intelligence/synthesize")
+async def synthesize_api(request: Request):
+    """Synthesize insights across sessions on related topics."""
+    body = await request.json()
+    topics = body.get("topics", [])
+    max_sessions = body.get("max_sessions", 10)
+    result = synthesize_across_sessions(topics, max_sessions)
+    return result
+
+
+@app.post("/api/intelligence/embed/{session_id}")
+async def embed_session_api(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Generate embeddings for a session."""
+    generate_session_embeddings(session_id)
+    return {"status": "ok", "session_id": session_id}
+
+
+@app.get("/api/intelligence/knowledge/{persona_id}")
+async def persona_knowledge_api(persona_id: str, domain: str = None):
+    """Get auto-generated knowledge for a persona."""
+    knowledge = get_persona_knowledge(persona_id, domain)
+    return {"persona_id": persona_id, "knowledge": knowledge}
+
+
+@app.post("/api/intelligence/knowledge/{persona_id}/generate")
+async def generate_knowledge_api(persona_id: str, domain: str = "general", current_user: dict = Depends(get_current_user)):
+    """Generate knowledge for a persona from session history."""
+    entries = generate_knowledge_from_sessions(persona_id, domain)
+    return {"persona_id": persona_id, "domain": domain, "entries_generated": len(entries)}
+
+
+@app.get("/api/intelligence/quality/overview")
+async def quality_overview_api(weeks: int = 12):
+    """Get quality trends overview."""
+    trends = get_quality_overview(weeks)
+    return {"weeks": weeks, "trends": trends}
+
+
+@app.post("/api/intelligence/quality/{session_id}")
+async def compute_quality_api(session_id: str, current_user: dict = Depends(get_current_user)):
+    """Compute and store quality metrics for a session."""
+    metrics = compute_quality_trend(session_id)
+    return metrics
 
 
 # ─── Phase 4.7: Settings & Integrations API ─────────────────────────────────

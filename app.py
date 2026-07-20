@@ -145,6 +145,15 @@ from session_intelligence import (
 )
 init_intelligence_schema()
 print("[session_intelligence] Schema initialized")
+
+# Phase 4.5: Evaluation Dashboard
+from evaluation_dashboard import (
+    init_evaluation_schema, analyze_session, save_session_metrics,
+    get_dashboard_summary, get_session_analytics, get_persona_trends,
+    get_quality_trend, export_session_report,
+)
+init_evaluation_schema()
+print("[evaluation_dashboard] Schema initialized")
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
     return get_all_personas(PERSONAS)
@@ -2146,6 +2155,17 @@ def populate_memory(session: ConversationSession):
     except Exception as e:
         log.warning("Session graph update failed: %s", e)
 
+    # Phase 4.5: Evaluate session quality
+    try:
+        metrics = analyze_session(session.session_id, session.messages)
+        if metrics.get("dimension_scores"):
+            save_session_metrics(session.session_id, metrics)
+            log.info("Session %s evaluated: quality=%.2f, insights=%d",
+                     session.session_id, metrics.get("overall_quality", 0),
+                     metrics.get("insight_count", 0))
+    except Exception as e:
+        log.warning("Session evaluation failed for %s: %s", session.session_id, e)
+
     log.info("Memory populated for session %s", session.session_id)
 
 
@@ -3289,6 +3309,38 @@ async def rebuild_graph_api():
     """Force rebuild the session graph."""
     connections = build_session_graph(top_n=50)
     return {"connections": len(connections), "graph": connections}
+
+
+# ─── Phase 4.5: Evaluation Dashboard API ──────────────────────────────────
+
+@app.get("/api/eval/dashboard")
+async def eval_dashboard_api():
+    """Get evaluation dashboard summary."""
+    return get_dashboard_summary()
+
+
+@app.get("/api/eval/session/{session_id}")
+async def eval_session_api(session_id: str):
+    """Get analytics for a specific session."""
+    return get_session_analytics(session_id)
+
+
+@app.get("/api/eval/persona/{persona_id}")
+async def eval_persona_api(persona_id: str, limit: int = 20):
+    """Get persona performance trends."""
+    return get_persona_trends(persona_id, limit)
+
+
+@app.get("/api/eval/trend")
+async def eval_trend_api(limit: int = 30):
+    """Get quality trend over recent sessions."""
+    return get_quality_trend(limit)
+
+
+@app.get("/api/eval/export/{session_id}")
+async def eval_export_api(session_id: str):
+    """Export comprehensive session report."""
+    return export_session_report(session_id)
 
 
 @app.get("/api/sessions/{session_id}")

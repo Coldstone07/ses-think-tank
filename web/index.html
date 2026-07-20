@@ -838,6 +838,16 @@
     <div id="intelligenceInsights"></div>
   </div>
 
+  <!-- Evaluation Dashboard Section -->
+  <div class="memory-section" id="evalSection">
+    <div class="memory-header">
+      <div class="panel-title" style="margin:0;">📊 Evaluation</div>
+      <span class="memory-count" id="evalCount">Loading...</span>
+    </div>
+    <div id="evalSummary"></div>
+    <div id="evalDimensions"></div>
+  </div>
+
   <div class="quick-topics">
     <div class="panel-title">Quick Topics</div>
     <div class="quick-topic" onclick="setTopic(this.textContent)">🔬 Why do reasoning models struggle with emotional presence?</div>
@@ -2055,6 +2065,45 @@ function loadIntelligence() {
 }
 
 loadIntelligence();
+
+// ─── EVALUATION DASHBOARD UI ─────────────────────────────────────────────
+
+function loadEvalDashboard() {
+  fetch('/api/eval/dashboard')
+    .then(r => r.json())
+    .then(data => {
+      document.getElementById('evalCount').textContent =
+        data.total_sessions_analyzed + ' sessions analyzed';
+      const summary = document.getElementById('evalSummary');
+      if (data.total_sessions_analyzed === 0) {
+        summary.innerHTML = '<div class="memory-empty">Evaluation data appears after sessions complete.</div>';
+      } else {
+        summary.innerHTML = '<div style="font-size:11px; color:var(--text-dim); margin-bottom:6px;">' +
+          'Avg quality: <strong style="color:var(--accent);">' + data.average_quality + '</strong></div>';
+      }
+      // Dimension bars
+      const dims = document.getElementById('evalDimensions');
+      const dimLabels = {
+        emotional_presence: '💜 Emotional',
+        depth: '🔵 Depth',
+        synergy: '🟢 Synergy',
+        originality: '🟡 Originality',
+        clarity: '⚪ Clarity',
+      };
+      let dimHtml = '';
+      for (const [dim, val] of Object.entries(data.dimension_averages)) {
+        const pct = Math.round(val * 100);
+        dimHtml += '<div style="margin-bottom:4px;">' +
+          '<div style="display:flex; justify-content:space-between; font-size:10px;"><span>' + (dimLabels[dim] || dim) + '</span><span>' + pct + '%</span></div>' +
+          '<div style="height:4px; background:var(--surface2); border-radius:2px;"><div style="height:100%; width:' + pct + '%; background:var(--accent); border-radius:2px;"></div></div>' +
+          '</div>';
+      }
+      dims.innerHTML = dimHtml;
+    })
+    .catch(() => document.getElementById('evalCount').textContent = 'Error');
+}
+
+loadEvalDashboard();
 </script>
 </body>
 </html>

@@ -233,6 +233,28 @@ from intelligence import (
 init_intelligence_schema()
 print("[intelligence] Deeper intelligence module loaded")
 
+# Phase 5.4: Research & Benchmarking
+from research import (
+    init_research_schema, create_template, get_template, list_templates,
+    use_template, delete_template,
+    create_ab_test, get_ab_test, record_ab_result, get_ab_test_summary,
+    create_provider_comparison, record_provider_result, get_provider_comparison,
+    create_reproducible_session, get_reproducible_session, verify_reproducibility,
+    compute_ses_scores, get_ses_scores, export_ses_scores_csv,
+)
+init_research_schema()
+print("[research] Research & benchmarking module loaded")
+
+# Phase 5.5: Collaboration
+from collaboration import (
+    init_collab_schema, fork_session, get_forks, get_fork_history,
+    create_comparison, get_comparison,
+    create_annotation, get_annotations, update_annotation,
+    delete_annotation, get_annotation_summary,
+)
+init_collab_schema()
+print("[collaboration] Collaboration module loaded")
+
 
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
@@ -3697,6 +3719,271 @@ async def compute_quality_api(session_id: str, current_user: dict = Depends(get_
     """Compute and store quality metrics for a session."""
     metrics = compute_quality_trend(session_id)
     return metrics
+
+
+# ─── Phase 5.4: Research & Benchmarking API ──────────────────────────────────
+
+# Templates
+@app.post("/api/research/templates")
+async def create_template_api(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    t = create_template(
+        name=body.get("name", ""),
+        description=body.get("description", ""),
+        personas=body.get("personas", []),
+        topic=body.get("topic", ""),
+        workflow=body.get("workflow", ""),
+        system_prompt=body.get("system_prompt", ""),
+        max_turns=body.get("max_turns", 20),
+        created_by=current_user.get("username", ""),
+    )
+    return t
+
+
+@app.get("/api/research/templates")
+async def list_templates_api(limit: int = 50):
+    return list_templates(limit)
+
+
+@app.get("/api/research/templates/{template_id}")
+async def get_template_api(template_id: str):
+    t = get_template(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return t
+
+
+@app.post("/api/research/templates/{template_id}/use")
+async def use_template_api(template_id: str):
+    t = use_template(template_id)
+    if not t:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return t
+
+
+@app.delete("/api/research/templates/{template_id}")
+async def delete_template_api(template_id: str, current_user: dict = Depends(get_current_user)):
+    deleted = delete_template(template_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Template not found")
+    return {"status": "ok"}
+
+
+# A/B Tests
+@app.post("/api/research/ab-tests")
+async def create_ab_test_api(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    test = create_ab_test(
+        name=body.get("name", ""),
+        description=body.get("description", ""),
+        variant_a_personas=body.get("variant_a_personas", []),
+        variant_b_personas=body.get("variant_b_personas", []),
+        topic=body.get("topic", ""),
+        seed_input=body.get("seed_input", ""),
+    )
+    return test
+
+
+@app.get("/api/research/ab-tests/{test_id}")
+async def get_ab_test_api(test_id: str):
+    summary = get_ab_test_summary(test_id)
+    if not summary:
+        raise HTTPException(status_code=404, detail="A/B test not found")
+    return summary
+
+
+@app.post("/api/research/ab-tests/{test_id}/results")
+async def record_ab_result_api(test_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    result = record_ab_result(
+        test_id=test_id,
+        variant=body.get("variant", "A"),
+        session_id=body.get("session_id", ""),
+        social_score=body.get("social_score", 0),
+        emotional_score=body.get("emotional_score", 0),
+        spiritual_score=body.get("spiritual_score", 0),
+        turn_count=body.get("turn_count", 0),
+        avg_response_time=body.get("avg_response_time", 0),
+    )
+    return result
+
+
+# Provider Comparisons
+@app.post("/api/research/comparisons")
+async def create_comparison_api(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    comp = create_provider_comparison(
+        name=body.get("name", ""),
+        prompt=body.get("prompt", ""),
+    )
+    return comp
+
+
+@app.post("/api/research/comparisons/{comparison_id}/results")
+async def record_comparison_result_api(comparison_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    result = record_provider_result(
+        comparison_id=comparison_id,
+        provider=body.get("provider", ""),
+        model=body.get("model", ""),
+        response=body.get("response", ""),
+        response_time=body.get("response_time", 0),
+        token_count=body.get("token_count", 0),
+        social_score=body.get("social_score", 0),
+        emotional_score=body.get("emotional_score", 0),
+        spiritual_score=body.get("spiritual_score", 0),
+    )
+    return result
+
+
+@app.get("/api/research/comparisons/{comparison_id}")
+async def get_comparison_api(comparison_id: str):
+    comp = get_provider_comparison(comparison_id)
+    if not comp:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    return comp
+
+
+# Reproducibility
+@app.post("/api/research/reproducible")
+async def create_reproducible_api(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    result = create_reproducible_session(
+        session_id=body.get("session_id", ""),
+        seed=body.get("seed", ""),
+        prompt=body.get("prompt", ""),
+        personas=body.get("personas", []),
+        config=body.get("config"),
+    )
+    return result
+
+
+@app.get("/api/research/reproducible/{seed}")
+async def get_reproducible_api(seed: str):
+    result = get_reproducible_session(seed)
+    if not result:
+        raise HTTPException(status_code=404, detail="Reproducible session not found")
+    return result
+
+
+# SES Scores
+@app.post("/api/research/ses-scores/{session_id}")
+async def compute_ses_scores_api(session_id: str, current_user: dict = Depends(get_current_user)):
+    scores = compute_ses_scores(session_id)
+    return scores
+
+
+@app.get("/api/research/ses-scores")
+async def get_ses_scores_api(session_id: str = None, limit: int = 50):
+    return get_ses_scores(session_id, limit)
+
+
+@app.get("/api/research/ses-scores/export/csv")
+async def export_ses_csv_api():
+    import csv
+    import io
+    from fastapi.responses import Response
+
+    csv_content = export_ses_scores_csv()
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ses_scores.csv"}
+    )
+
+
+# ─── Phase 5.5: Collaboration API ────────────────────────────────────────────
+
+# Fork Sessions
+@app.post("/api/sessions/{session_id}/fork")
+async def fork_session_api(session_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    fork = fork_session(
+        original_session_id=session_id,
+        forked_by=current_user.get("username", ""),
+        fork_point=body.get("fork_point", 0),
+    )
+    if not fork:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return fork
+
+
+@app.get("/api/sessions/{session_id}/forks")
+async def get_forks_api(session_id: str):
+    return get_forks(session_id)
+
+
+@app.get("/api/sessions/{session_id}/fork-history")
+async def get_fork_history_api(session_id: str):
+    history = get_fork_history(session_id)
+    if not history:
+        raise HTTPException(status_code=404, detail="Not a forked session")
+    return history
+
+
+# Comparisons
+@app.post("/api/collaboration/comparisons")
+async def create_comparison_api(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    comp = create_comparison(
+        session_a_id=body.get("session_a_id", ""),
+        session_b_id=body.get("session_b_id", ""),
+        created_by=current_user.get("username", ""),
+    )
+    if not comp:
+        raise HTTPException(status_code=404, detail="One or both sessions not found")
+    return comp
+
+
+@app.get("/api/collaboration/comparisons/{comparison_id}")
+async def get_comparison_api(comparison_id: str):
+    comp = get_comparison(comparison_id)
+    if not comp:
+        raise HTTPException(status_code=404, detail="Comparison not found")
+    return comp
+
+
+# Annotations
+@app.post("/api/sessions/{session_id}/annotations")
+async def create_annotation_api(session_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    ann = create_annotation(
+        session_id=session_id,
+        turn_number=body.get("turn_number", 0),
+        content=body.get("content", ""),
+        user_id=current_user.get("username", ""),
+        annotation_type=body.get("annotation_type", "comment"),
+    )
+    if not ann:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return ann
+
+
+@app.get("/api/sessions/{session_id}/annotations")
+async def get_annotations_api(session_id: str, turn_number: int = None):
+    return get_annotations(session_id, turn_number)
+
+
+@app.put("/api/annotations/{annotation_id}")
+async def update_annotation_api(annotation_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    updated = update_annotation(annotation_id, body.get("content", ""))
+    if not updated:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    return {"status": "ok"}
+
+
+@app.delete("/api/annotations/{annotation_id}")
+async def delete_annotation_api(annotation_id: str, current_user: dict = Depends(get_current_user)):
+    deleted = delete_annotation(annotation_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Annotation not found")
+    return {"status": "ok"}
+
+
+@app.get("/api/sessions/{session_id}/annotation-summary")
+async def get_annotation_summary_api(session_id: str):
+    return get_annotation_summary(session_id)
 
 
 # ─── Phase 4.7: Settings & Integrations API ─────────────────────────────────

@@ -255,6 +255,16 @@ from collaboration import (
 init_collab_schema()
 print("[collaboration] Collaboration module loaded")
 
+# Phase 5.6: Platform & Scale
+from platform_scale import (
+    metrics, logger, APIRouter,
+    init_marketplace_schema, register_plugin, get_plugin, list_plugins,
+    search_plugins, install_plugin, approve_plugin, rate_plugin,
+    get_plugin_reviews, get_marketplace_stats,
+)
+init_marketplace_schema()
+print("[platform] Platform & scale module loaded")
+
 
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
@@ -3984,6 +3994,115 @@ async def delete_annotation_api(annotation_id: str, current_user: dict = Depends
 @app.get("/api/sessions/{session_id}/annotation-summary")
 async def get_annotation_summary_api(session_id: str):
     return get_annotation_summary(session_id)
+
+
+# ─── Phase 5.6: Platform & Scale API ─────────────────────────────────────────
+
+# Prometheus Metrics
+@app.get("/api/platform/metrics")
+async def metrics_api():
+    """Get Prometheus-compatible metrics."""
+    return metrics.get_prometheus_text()
+
+
+@app.get("/api/platform/metrics/json")
+async def metrics_json_api():
+    """Get metrics as JSON."""
+    return metrics.get_json()
+
+
+# Structured Logging
+@app.get("/api/platform/logs")
+async def logs_api(lines: int = 50):
+    """Get recent log entries."""
+    return logger.get_recent(lines)
+
+
+@app.get("/api/platform/logs/stats")
+async def log_stats_api():
+    """Get log statistics."""
+    return logger.get_stats()
+
+
+# API Router
+@app.get("/api/platform/routes")
+async def routes_api():
+    """List all API routes."""
+    return app.routes
+
+
+# Plugin Marketplace
+@app.post("/api/marketplace/plugins")
+async def register_plugin_api(request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    plugin = register_plugin(
+        name=body.get("name", ""),
+        description=body.get("description", ""),
+        category=body.get("category", "tool"),
+        version=body.get("version", "1.0.0"),
+        author=body.get("author", current_user.get("username", "")),
+        download_url=body.get("download_url", ""),
+        tags=body.get("tags", []),
+    )
+    return plugin
+
+
+@app.get("/api/marketplace/plugins")
+async def list_plugins_api(category: str = None, approved_only: bool = True, limit: int = 50):
+    return list_plugins(category=category, approved_only=approved_only, limit=limit)
+
+
+@app.get("/api/marketplace/plugins/search")
+async def search_plugins_api(q: str, limit: int = 20):
+    return search_plugins(q, limit)
+
+
+@app.get("/api/marketplace/plugins/{plugin_id}")
+async def get_plugin_api(plugin_id: str):
+    plugin = get_plugin(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    return plugin
+
+
+@app.post("/api/marketplace/plugins/{plugin_id}/install")
+async def install_plugin_api(plugin_id: str):
+    plugin = install_plugin(plugin_id)
+    if not plugin:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    return plugin
+
+
+@app.post("/api/marketplace/plugins/{plugin_id}/approve")
+async def approve_plugin_api(plugin_id: str, current_user: dict = Depends(get_current_user)):
+    approved = approve_plugin(plugin_id)
+    if not approved:
+        raise HTTPException(status_code=404, detail="Plugin not found")
+    return {"status": "ok"}
+
+
+@app.post("/api/marketplace/plugins/{plugin_id}/rate")
+async def rate_plugin_api(plugin_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    body = await request.json()
+    result = rate_plugin(
+        plugin_id=plugin_id,
+        user_id=current_user.get("user_id", ""),
+        rating=body.get("rating", 0),
+        review=body.get("review", ""),
+    )
+    if not result:
+        raise HTTPException(status_code=400, detail="Rating must be between 1 and 5")
+    return result
+
+
+@app.get("/api/marketplace/plugins/{plugin_id}/reviews")
+async def get_plugin_reviews_api(plugin_id: str, limit: int = 20):
+    return get_plugin_reviews(plugin_id, limit)
+
+
+@app.get("/api/marketplace/stats")
+async def marketplace_stats_api():
+    return get_marketplace_stats()
 
 
 # ─── Phase 4.7: Settings & Integrations API ─────────────────────────────────

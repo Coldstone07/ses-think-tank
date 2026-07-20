@@ -1,0 +1,19 @@
+name: read_file
+description: Read a file from the workspace directory. Returns file contents.
+parameters:
+  - name: filepath
+    type: string
+    required: true
+    description: "Path to file (relative to workspace)"
+execution:
+  type: python
+  code: |
+    import os
+    fp = "{{filepath}}"
+    if not os.path.exists(fp):
+      raise FileNotFoundError(f"File not found: {fp}")
+    with open(fp, "r") as f:
+      content = f.read()
+    print(content[:8000])
+timeout: 10
+sandbox: true

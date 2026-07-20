@@ -28,7 +28,20 @@ PLUGIN_DIRS = {
     "personas": "plugins/personas",
     "workflows": "plugins/workflows",
     "memory": "plugins/memory",
+    "tools": "plugins/tools",
 }
+
+# Import tool plugin system
+from plugins.tools import (
+    tool_store, validate_tool, tool_to_openai_schema,
+    execute_tool_plugin, TOOL_REQUIRED, EXECUTION_TYPES,
+)
+
+# Import knowledge system
+from plugins.knowledge import (
+    load_knowledge, add_memory, extract_memories_from_conversation,
+    list_personas_with_knowledge,
+)
 
 
 def validate_persona(data: dict) -> list[str]:

@@ -119,12 +119,18 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 from plugins import (
     plugin_store, get_all_personas, get_all_workflows,
-    PERSONA_REQUIRED, PERSONA_OPTIONAL
+    PERSONA_REQUIRED, PERSONA_OPTIONAL,
+    tool_store, validate_tool, tool_to_openai_schema,
+    execute_tool_plugin,
+    load_knowledge, add_memory, extract_memories_from_conversation,
+    list_personas_with_knowledge,
 )
 
 # Load plugins at startup
 _plugin_summary = plugin_store.load_all(str(BASE_DIR))
+_tool_summary = tool_store.load_all(str(BASE_DIR))
 log.info(f"Plugins loaded: {_plugin_summary['loaded']} files, {_plugin_summary['persona_count']} personas, {_plugin_summary['workflow_count']} workflows, {_plugin_summary['errors']} errors")
+log.info(f"Tool plugins loaded: {_tool_summary['loaded']} tools, {_tool_summary['errors']} errors")
 
 
 def resolve_personas() -> list:
@@ -135,6 +141,40 @@ def resolve_personas() -> list:
 def resolve_workflows() -> dict:
     """Get all workflows (built-in + plugins). Plugins add new entries."""
     return get_all_workflows(WORKFLOWS)
+
+
+def resolve_tools() -> list:
+    """Get all tool schemas (built-in + plugin tools)."""
+    # Merge built-in tools with plugin tools
+    built_in = list(TOOL_DEFINITIONS)
+    plugin_schemas = tool_store.get_openai_schemas()
+    # Deduplicate by name
+    plugin_names = {t["function"]["name"] for t in plugin_schemas}
+    built_in = [t for t in built_in if t["function"]["name"] not in plugin_names]
+    return built_in + plugin_schemas
+
+
+def augment_system_prompt(persona: dict) -> str:
+    """Augment a persona's system prompt with knowledge (books + memories)."""
+    prompt = persona["system_prompt"]
+    persona_id = persona["id"]
+    knowledge = load_knowledge(persona_id, str(BASE_DIR))
+    if knowledge["knowledge_prompt"]:
+        prompt = prompt + "\n\n" + knowledge["knowledge_prompt"]
+    return prompt
+
+
+def execute_tool_call(tool_name: str, arguments: dict) -> dict:
+    """Execute a tool call - checks built-in tools first, then plugin tools."""
+    # Try built-in tools
+    tool_def = TOOLS_BY_NAME.get(tool_name)
+    if tool_def:
+        return execute_tool(tool_name, arguments)
+    # Try plugin tools
+    plugin_tool = tool_store.tools.get(tool_name)
+    if plugin_tool:
+        return execute_tool_plugin(plugin_tool, arguments, str(BASE_DIR))
+    return {"result": None, "error": f"Unknown tool: {tool_name}"}
 
 
 # ─── PERSONA DEFINITIONS ─────────────────────────────────────────────────────
@@ -2646,10 +2686,10 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 None,
                 call_llm_with_tools,
                 [
-                    {"role": "system", "content": speaker["system_prompt"]},
+                    {"role": "system", "content": augment_system_prompt(speaker)},
                     {"role": "user", "content": response_prompt},
                 ],
-                TOOL_DEFINITIONS,
+                resolve_tools(),
                 MODEL_ID,
                 0.85,
                 2048 if phase_id in ("synthesize", "finalize") else 512,
@@ -3059,6 +3099,105 @@ async def delete_plugin_persona(persona_id: str):
 async def check_plugin_reload():
     """Check if any plugin files have changed since last load."""
     return {"needs_reload": plugin_store.needs_reload(str(BASE_DIR))}
+
+
+# ─── TOOL PLUGINS API ─────────────────────────────────────────────────────
+
+@app.get("/api/tools")
+async def list_tools():
+    """List all available tools (built-in + plugins)."""
+    return tool_store.info()
+
+
+@app.post("/api/tools/reload")
+async def reload_tools():
+    """Reload tool plugins from disk."""
+    summary = tool_store.load_all(str(BASE_DIR))
+    log.info(f"Tools reloaded: {summary['loaded']} tools, {summary['errors']} errors")
+    return {"reloaded": True, "summary": summary}
+
+
+@app.post("/api/tools")
+async def create_tool():
+    """Create a new tool plugin YAML file."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    errors = validate_tool(body)
+    if errors:
+        return JSONResponse(status_code=400, content={"error": "; ".join(errors)})
+
+    tool_name = body["name"]
+    fname = f"plugins/tools/{tool_name}.yaml"
+    fpath = str(BASE_DIR / fname)
+    try:
+        os.makedirs(str(BASE_DIR / "plugins/tools"), exist_ok=True)
+        with open(fpath, "w", encoding="utf-8") as f:
+            yaml.dump(body, f, default_flow_style=False, allow_unicode=True)
+        summary = tool_store.load_all(str(BASE_DIR))
+        return {"created": fpath, "reloaded": True, "summary": summary}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.delete("/api/tools/{tool_name}")
+async def delete_tool(tool_name: str):
+    """Delete a tool plugin YAML file."""
+    fpath = str(BASE_DIR / f"plugins/tools/{tool_name}.yaml")
+    if not os.path.exists(fpath):
+        return JSONResponse(status_code=404, content={"error": f"Tool plugin not found: {tool_name}"})
+    try:
+        os.remove(fpath)
+        summary = tool_store.load_all(str(BASE_DIR))
+        return {"deleted": fpath, "reloaded": True, "summary": summary}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+# ─── KNOWLEDGE API ────────────────────────────────────────────────────────
+
+@app.get("/api/knowledge")
+async def list_knowledge():
+    """List all personas with knowledge."""
+    return list_personas_with_knowledge(str(BASE_DIR))
+
+
+@app.get("/api/knowledge/{persona_id}")
+async def get_knowledge(persona_id: str):
+    """Get knowledge for a specific persona."""
+    return load_knowledge(persona_id, str(BASE_DIR))
+
+
+@app.post("/api/knowledge/{persona_id}/memory")
+async def add_persona_memory(persona_id: str):
+    """Add a memory to a persona's knowledge."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    insight = body.get("insight", "")
+    source = body.get("source", "")
+    if not insight:
+        return JSONResponse(status_code=400, content={"error": "insight is required"})
+
+    memory = add_memory(persona_id, insight, source, str(BASE_DIR))
+    return {"added": memory}
+
+
+@app.post("/api/knowledge/{persona_id}/extract-memories")
+async def extract_persona_memories(persona_id: str):
+    """Extract memories from recent conversation messages for a persona."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse(status_code=400, content={"error": "Invalid JSON"})
+
+    messages = body.get("messages", [])
+    added = extract_memories_from_conversation(persona_id, messages, str(BASE_DIR))
+    return {"extracted": len(added), "memories": added}
 
 
 @app.get("/api/sessions/{session_id}")

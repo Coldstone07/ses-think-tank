@@ -1,0 +1,19 @@
+name: web_search
+description: Search the web for current information. Returns top results with titles, URLs, and snippets.
+parameters:
+  - name: query
+    type: string
+    required: true
+    description: "Search query (e.g., 'latest AI safety research 2025')"
+execution:
+  type: python
+  code: |
+    from duckduckgo_search import DDGS
+    with DDGS() as d:
+      results = d.text("{{query}}", max_results=5)
+      output = []
+      for r in results:
+        output.append(f"[{r['title']}] {r['href']} - {r['body']}")
+      print("\n".join(output))
+timeout: 30
+sandbox: true

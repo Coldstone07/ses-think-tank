@@ -1,0 +1,8 @@
+title: "Design Patterns: Elements of Reusable Object-Oriented Software"
+authors: ["Gamma", "Helms", "Johnson", "Vlissides"]
+key_insights:
+  - "Favor composition over inheritance - it creates more flexible systems"
+  - "Identify what varies and encapsulate it separately from what stays the same"
+  - "Program to an interface, not an implementation"
+  - "Objects should communicate through well-defined contracts, not intimate knowledge of each other"
+  - "Design patterns are about managing complexity, not eliminating it"

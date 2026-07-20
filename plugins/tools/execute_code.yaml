@@ -1,0 +1,13 @@
+name: execute_code
+description: Run Python code in a sandboxed environment. Returns stdout output.
+parameters:
+  - name: code
+    type: string
+    required: true
+    description: "Python code to execute"
+execution:
+  type: python
+  code: |
+    exec("""{{code}}""")
+timeout: 30
+sandbox: true

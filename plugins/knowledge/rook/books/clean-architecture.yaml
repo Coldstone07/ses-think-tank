@@ -1,0 +1,8 @@
+title: "Clean Architecture"
+authors: ["Robert C. Martin"]
+key_insights:
+  - "The purpose of software is to convert data into information"
+  - "Architecture should make it easy to change what is expected to change"
+  - "Dependencies should point inward - high-level policies depend on low-level details, not the reverse"
+  - "A good architecture is independent of framework, database, and UI"
+  - "The 80-20 rule: 80% of the cost is in maintenance, so design for change"

@@ -163,6 +163,46 @@ from persona_evolution import (
 )
 init_evolution_schema()
 print("[persona_evolution] Schema initialized")
+
+# Phase 4.7: Settings & Integrations
+from settings import (
+    init_settings_schema,
+    get_available_providers, get_available_integrations,
+    save_provider_config, get_provider_config, get_all_provider_configs,
+    set_default_provider, get_default_provider,
+    save_api_key, get_api_key, get_api_keys_list, delete_api_key,
+    get_environment_keys,
+    save_setting, get_setting, get_all_settings,
+    get_provider_env,
+)
+init_settings_schema()
+print("[settings] Schema initialized")
+
+# Initialize default LM Studio provider from env
+try:
+    save_provider_config("default", "lm_studio", {
+        "base_url": LM_STUDIO_URL,
+        "model": MODEL_ID,
+        "max_tokens": 2048,
+        "temperature": 0.7,
+    }, enabled=True)
+    set_default_provider("default", "lm_studio")
+except Exception:
+    pass  # Already initialized
+
+# Initialize Gemini provider if key exists
+if GEMINI_API_KEY:
+    try:
+        save_provider_config("default", "gemini", {
+            "model": "gemini-2.5-flash",
+            "max_tokens": 2048,
+            "temperature": 0.7,
+        }, enabled=True)
+        save_api_key("default", "gemini", "GEMINI_API_KEY", GEMINI_API_KEY, "From env")
+    except Exception:
+        pass
+
+
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
     return get_all_personas(PERSONAS)
@@ -3387,6 +3427,77 @@ async def evolution_summary_api():
 async def evolution_persona_api(persona_id: str):
     """Get complete evolution profile for a persona."""
     return get_persona_profile(persona_id)
+
+
+# ─── Phase 4.7: Settings & Integrations API ─────────────────────────────────
+
+@app.get("/api/settings/providers")
+async def settings_providers_api():
+    """Get available LLM providers."""
+    return get_available_providers()
+
+
+@app.get("/api/settings/integrations")
+async def settings_integrations_api():
+    """Get available integrations."""
+    return get_available_integrations()
+
+
+@app.get("/api/settings/config")
+async def settings_config_api():
+    """Get all provider configs + keys status for current user."""
+    return {
+        "providers": get_all_provider_configs("default"),
+        "default_provider": get_default_provider("default"),
+        "api_keys": get_api_keys_list("default"),
+        "env_keys": get_environment_keys(),
+        "settings": get_all_settings("default"),
+        "provider_env": get_provider_env("default"),
+    }
+
+
+@app.post("/api/settings/provider/{provider_name}/config")
+async def settings_save_provider_api(provider_name: str, request: FastAPIRequest):
+    """Save provider configuration."""
+    body = await request.json()
+    save_provider_config("default", provider_name, body.get("config", {}), body.get("enabled", True))
+    if body.get("set_default"):
+        set_default_provider("default", provider_name)
+    return {"status": "ok", "provider": provider_name}
+
+
+@app.post("/api/settings/provider/{provider_name}/default")
+async def settings_set_default_api(provider_name: str):
+    """Set a provider as default."""
+    set_default_provider("default", provider_name)
+    return {"status": "ok", "default_provider": provider_name}
+
+
+@app.post("/api/settings/api-key")
+async def settings_save_api_key_api(request: FastAPIRequest):
+    """Save an API key (encrypted)."""
+    body = await request.json()
+    save_api_key(
+        "default",
+        body["provider"],
+        body["key_name"],
+        body["key_value"],
+        body.get("label", "")
+    )
+    return {"status": "ok"}
+
+
+@app.delete("/api/settings/api-key/{key_id}")
+async def settings_delete_api_key_api(key_id: int):
+    """Delete an API key."""
+    delete_api_key("default", int(key_id))
+    return {"status": "ok"}
+
+
+@app.get("/api/settings/provider-env")
+async def settings_provider_env_api():
+    """Get effective provider environment for LLM calls."""
+    return get_provider_env("default")
 
 
 @app.get("/api/sessions/{session_id}")

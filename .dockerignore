@@ -1,0 +1,18 @@
+# SES Think Tank — Docker Ignore
+__pycache__/
+*.pyc
+*.pyo
+.env
+data/*.db
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+.pytest_cache/
+node_modules/
+.git/
+.gitignore
+*.md
+tests/
+workflow/

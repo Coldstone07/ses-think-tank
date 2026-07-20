@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  ses-think-tank:
+    build: .
+    container_name: ses-think-tank
+    ports:
+      - "8773:8773"
+    volumes:
+      # Persist settings, memory, and plugin data
+      - ./data:/app/data
+      - ./plugins:/app/plugins
+    env_file:
+      - .env
+    environment:
+      - SES_DEFAULT_PROVIDER=${SES_DEFAULT_PROVIDER:-lm_studio}
+      - SES_ENCRYPTION_KEY=${SES_ENCRYPTION_KEY}
+      - SES_MEMORY_DB=data/memory.db
+      - SES_SETTINGS_DB=data/settings.db
+      - LM_STUDIO_URL=${LM_STUDIO_URL:-http://localhost:1234}
+      - MODEL_ID=${MODEL_ID:-qwen/qwen3.6-27b}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - TAVILY_API_KEY=${TAVILY_API_KEY:-}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+      - FIRECRAWL_API_KEY=${FIRECRAWL_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8773/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

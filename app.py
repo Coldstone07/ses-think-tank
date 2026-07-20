@@ -154,6 +154,15 @@ from evaluation_dashboard import (
 )
 init_evaluation_schema()
 print("[evaluation_dashboard] Schema initialized")
+
+# Phase 4.6: Persona Evolution
+from persona_evolution import (
+    init_evolution_schema, process_session_evolution,
+    get_persona_profile, get_evolution_summary,
+    generate_adaptation_prompt,
+)
+init_evolution_schema()
+print("[persona_evolution] Schema initialized")
 def resolve_personas() -> list:
     """Get all personas (built-in + plugins). Plugins override by id."""
     return get_all_personas(PERSONAS)
@@ -176,7 +185,7 @@ def resolve_tools() -> list:
 
 
 def augment_system_prompt(persona: dict, topic: str = "") -> str:
-    """Augment a persona's system prompt with knowledge (books + memories) and past insights."""
+    """Augment a persona's system prompt with knowledge, past insights, and adaptation instructions."""
     prompt = persona["system_prompt"]
     persona_id = persona["id"]
     knowledge = load_knowledge(persona_id, str(BASE_DIR))
@@ -187,6 +196,16 @@ def augment_system_prompt(persona: dict, topic: str = "") -> str:
         recall = build_recall_prompt(topic)
         if recall:
             prompt = prompt + "\n\n" + recall
+    # Phase 4.6: Inject adaptation instructions based on recent feedback
+    try:
+        from evaluation_dashboard import get_persona_trends as get_pt
+        trends = get_pt(persona_id, limit=5)
+        if trends.get("dimension_averages"):
+            adaptation = generate_adaptation_prompt(persona_id, trends["dimension_averages"])
+            if adaptation:
+                prompt = prompt + "\n\n" + adaptation
+    except Exception:
+        pass  # Silently skip if evolution data not available yet
     return prompt
 
 
@@ -2166,6 +2185,19 @@ def populate_memory(session: ConversationSession):
     except Exception as e:
         log.warning("Session evaluation failed for %s: %s", session.session_id, e)
 
+    # Phase 4.6: Process persona evolution
+    try:
+        persona_scores = {pid: pdata.get("scores", {})
+                         for pid, pdata in metrics.get("persona_scores", {}).items()}
+        evolution = process_session_evolution(
+            session.session_id, session.messages, persona_scores
+        )
+        if evolution:
+            log.info("Persona evolution processed for session %s: %d personas updated",
+                     session.session_id, len(evolution))
+    except Exception as e:
+        log.warning("Persona evolution failed for %s: %s", session.session_id, e)
+
     log.info("Memory populated for session %s", session.session_id)
 
 
@@ -3341,6 +3373,20 @@ async def eval_trend_api(limit: int = 30):
 async def eval_export_api(session_id: str):
     """Export comprehensive session report."""
     return export_session_report(session_id)
+
+
+# ─── Phase 4.6: Persona Evolution API ─────────────────────────────────────
+
+@app.get("/api/evolution/summary")
+async def evolution_summary_api():
+    """Get evolution overview stats."""
+    return get_evolution_summary()
+
+
+@app.get("/api/evolution/persona/{persona_id}")
+async def evolution_persona_api(persona_id: str):
+    """Get complete evolution profile for a persona."""
+    return get_persona_profile(persona_id)
 
 
 @app.get("/api/sessions/{session_id}")

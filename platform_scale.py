@@ -15,10 +15,15 @@ from typing import Optional, List, Dict
 from collections import defaultdict
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
+MARKETPLACE_DB_PATH = Path(os.environ.get("SES_MARKETPLACE_DB", "data/marketplace.db"))
 
 
 def _memory_db_path() -> Path:
     return Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
+
+
+def _marketplace_db_path() -> Path:
+    return Path(os.environ.get("SES_MARKETPLACE_DB", "data/marketplace.db"))
 
 
 # ─── PROMETHEUS METRICS ─────────────────────────────────────────────────────
@@ -261,7 +266,7 @@ class APIRouter:
 
 def init_marketplace_schema():
     """Create marketplace tables."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS plugin_registry (
@@ -307,7 +312,7 @@ def register_plugin(name: str, description: str, category: str = "tool",
     """Register a plugin in the marketplace."""
     plugin_id = f"plugin_{int(time.time() * 1000) % 1000000000:09d}"
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO plugin_registry
@@ -325,7 +330,7 @@ def register_plugin(name: str, description: str, category: str = "tool",
 
 def get_plugin(plugin_id: str) -> Optional[dict]:
     """Get a plugin by ID."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM plugin_registry WHERE plugin_id = ?", (plugin_id,))
@@ -343,7 +348,7 @@ def get_plugin(plugin_id: str) -> Optional[dict]:
 def list_plugins(category: str = None, approved_only: bool = True,
                   limit: int = 50) -> List[dict]:
     """List plugins, optionally filtered by category."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -381,7 +386,7 @@ def list_plugins(category: str = None, approved_only: bool = True,
 
 def search_plugins(query: str, limit: int = 20) -> List[dict]:
     """Search plugins by name or description."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -404,7 +409,7 @@ def search_plugins(query: str, limit: int = 20) -> List[dict]:
 
 def install_plugin(plugin_id: str) -> Optional[dict]:
     """Increment install count for a plugin."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.execute(
         "UPDATE plugin_registry SET install_count = install_count + 1 WHERE plugin_id = ?",
@@ -418,7 +423,7 @@ def install_plugin(plugin_id: str) -> Optional[dict]:
 
 def approve_plugin(plugin_id: str) -> bool:
     """Approve a plugin for the marketplace."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.execute(
         "UPDATE plugin_registry SET approved = 1 WHERE plugin_id = ?",
@@ -438,7 +443,7 @@ def rate_plugin(plugin_id: str, user_id: str, rating: int,
 
     review_id = f"rev_{int(time.time() * 1000) % 1000000000:09d}"
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     cur = conn.cursor()
 
     # Insert review
@@ -473,7 +478,7 @@ def rate_plugin(plugin_id: str, user_id: str, rating: int,
 
 def get_plugin_reviews(plugin_id: str, limit: int = 20) -> List[dict]:
     """Get reviews for a plugin."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -488,7 +493,7 @@ def get_plugin_reviews(plugin_id: str, limit: int = 20) -> List[dict]:
 
 def get_marketplace_stats() -> dict:
     """Get marketplace statistics."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = sqlite3.connect(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 

@@ -571,6 +571,60 @@
     font-weight: 700; display: flex; align-items: center;
     justify-content: center; padding: 0 4px;
   }
+
+  /* ─── WALKTHROUGH ─────────────────────────────────────────────────────── */
+  .walkthrough-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    background: rgba(0,0,0,0.7); backdrop-filter: blur(4px);
+    display: none; align-items: center; justify-content: center;
+    animation: fadeIn 0.25s ease;
+  }
+  .walkthrough-overlay.active { display: flex; }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+  .walkthrough-highlight {
+    position: absolute; outline: 2px solid var(--accent);
+    outline-offset: 2px; border-radius: var(--radius);
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.65);
+    z-index: 1; transition: all 0.3s ease;
+  }
+
+  .walkthrough-card {
+    position: relative; z-index: 2;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 32px;
+    max-width: 400px; width: 90%;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    animation: slideUp 0.3s ease;
+  }
+  @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+  .walkthrough-step { font-size: 11px; color: var(--text-muted); margin-bottom: 8px; font-weight: 600; letter-spacing: 0.5px; }
+  .walkthrough-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); }
+  .walkthrough-desc { font-size: 13px; line-height: 1.6; color: var(--text-dim); margin-bottom: 20px; }
+  .walkthrough-actions { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+  .walkthrough-dots { display: flex; gap: 6px; }
+  .walkthrough-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border); transition: all 0.2s;
+  }
+  .walkthrough-dot.active { background: var(--accent); width: 20px; border-radius: 4px; }
+  .walkthrough-dot.done { background: var(--green); }
+
+  .walkthrough-btn {
+    padding: 8px 18px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+  }
+  .walkthrough-btn:hover { border-color: var(--accent); color: var(--text); }
+  .walkthrough-btn.primary {
+    background: var(--accent); border-color: var(--accent); color: white;
+  }
+  .walkthrough-btn.primary:hover { background: #5457e5; }
+  .walkthrough-btn.skip { font-size: 11px; color: var(--text-muted); background: none; border: none; }
+  .walkthrough-btn.skip:hover { color: var(--text-dim); }
+
+  .walkthrough-icon { font-size: 28px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -883,6 +937,25 @@
       </div>
       <div id="evalSummary"></div>
       <div id="evalDimensions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- WALKTHROUGH OVERLAY -->
+<div class="walkthrough-overlay" id="walkthroughOverlay">
+  <div class="walkthrough-highlight" id="walkthroughHighlight"></div>
+  <div class="walkthrough-card">
+    <div class="walkthrough-icon" id="walkthroughIcon"></div>
+    <div class="walkthrough-step" id="walkthroughStep"></div>
+    <div class="walkthrough-title" id="walkthroughTitle"></div>
+    <div class="walkthrough-desc" id="walkthroughDesc"></div>
+    <div class="walkthrough-actions">
+      <div class="walkthrough-dots" id="walkthroughDots"></div>
+      <div style="display:flex;gap:8px;">
+        <button class="walkthrough-btn skip" onclick="endWalkthrough()">Skip</button>
+        <button class="walkthrough-btn" id="walkthroughBack" onclick="walkthroughPrev()">Back</button>
+        <button class="walkthrough-btn primary" id="walkthroughNext" onclick="walkthroughNext()">Next</button>
+      </div>
     </div>
   </div>
 </div>

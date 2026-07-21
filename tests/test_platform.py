@@ -171,25 +171,21 @@ def test_api_router_list_routes():
 @pytest.fixture
 def tmp_marketplace_db(tmp_path):
     """Create temp DB with marketplace schema."""
-    os.environ["SES_MEMORY_DB"] = str(tmp_path / "memory.db")
+    os.environ["SES_MARKETPLACE_DB"] = str(tmp_path / "marketplace.db")
 
     import sqlite3
-    conn = sqlite3.connect(str(tmp_path / "memory.db"))
+    conn = sqlite3.connect(str(tmp_path / "marketplace.db"))
     cur = conn.cursor()
-    cur.executescript("""
-        CREATE TABLE IF NOT EXISTS memory_sessions (
-            session_id TEXT PRIMARY KEY,
-            topic TEXT NOT NULL,
-            persona_ids TEXT NOT NULL,
-            started_at REAL DEFAULT (julianday('now')),
-            ended_at REAL,
-            turn_count INTEGER DEFAULT 0
-        );
-    """)
     init_marketplace_schema()
     conn.commit()
     conn.close()
-    return tmp_path
+
+    yield tmp_path
+
+    os.environ.pop("SES_MARKETPLACE_DB", None)
+    conn = sqlite3.connect(str(tmp_path / "marketplace.db"))
+    conn.close()
+    (tmp_path / "marketplace.db").unlink(missing_ok=True)
 
 
 def test_register_plugin(tmp_marketplace_db):

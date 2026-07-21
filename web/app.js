@@ -822,5 +822,163 @@ function deleteKey(id) { if(!confirm('Remove this key?')) return; fetch(`/api/se
 {method:'DELETE'}).then(r=>r.json()).then(()=>loadSettings()); }
 
 document.addEventListener('keydown', e => {
-  if(e.key==='Escape') document.getElementById('settingsModal').classList.remove('visible');
+  if(e.key==='Escape') {
+    document.getElementById('settingsModal').classList.remove('visible');
+    endWalkthrough();
+  }
 });
+
+// ─── WALKTHROUGH ──────────────────────────────────────────────────────────────
+const walkthroughSteps = [
+  {
+    selector: '.header',
+    icon: '🧠',
+    title: 'Welcome to Think Tank',
+    desc: 'Multi-agent brainstorming with 7 unique AI personas. Each has their own style, expertise, and way of thinking. Let\'s take a quick tour.',
+    position: 'below'
+  },
+  {
+    selector: '.left-panel',
+    icon: '👥',
+    title: 'Choose Your Team',
+    desc: '7 personas from Rook (architect) to Sage (ethicist). Click to select who joins your session. Mix and match for different perspectives.',
+    position: 'right'
+  },
+  {
+    selector: '#topicInput',
+    icon: '💬',
+    title: 'Set Your Topic',
+    desc: 'Type any topic or task — from product strategy to philosophical debates. The more specific, the better the output.',
+    position: 'below'
+  },
+  {
+    selector: '.mode-tabs',
+    icon: '⚡',
+    title: 'Three Modes',
+    desc: 'Salon for open discussion, Design for structured ideation, Sprint for fast decisions. Each changes how personas interact.',
+    position: 'below'
+  },
+  {
+    selector: '.right-panel',
+    icon: '📊',
+    title: 'Live Intelligence',
+    desc: '5 tabs: Session stats, Memory search, Insights, Tool plugins, and Evaluation metrics. Everything updates in real-time.',
+    position: 'left'
+  },
+  {
+    selector: '#chatArea',
+    icon: '🚀',
+    title: 'You\'re All Set',
+    desc: 'Hit Start to begin. Use ⌘+Enter to launch, ⌘+K to focus input, ⌘+T to toggle theme. Click the quick-start suggestions to jump right in.',
+    position: 'above'
+  }
+];
+
+let walkthroughIndex = 0;
+
+function startWalkthrough() {
+  if (localStorage.getItem('walkthrough_done')) return;
+  walkthroughIndex = 0;
+  showWalkthroughStep();
+  document.getElementById('walkthroughOverlay').classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function showWalkthroughStep() {
+  const step = walkthroughSteps[walkthroughIndex];
+  const overlay = document.getElementById('walkthroughOverlay');
+  const highlight = document.getElementById('walkthroughHighlight');
+  const dots = document.getElementById('walkthroughDots');
+
+  // Update content
+  document.getElementById('walkthroughIcon').textContent = step.icon;
+  document.getElementById('walkthroughStep').textContent = `STEP ${walkthroughIndex + 1} OF ${walkthroughSteps.length}`;
+  document.getElementById('walkthroughTitle').textContent = step.title;
+  document.getElementById('walkthroughDesc').textContent = step.desc;
+
+  // Highlight target element
+  const el = document.querySelector(step.selector);
+  if (el) {
+    const rect = el.getBoundingClientRect();
+    highlight.style.left = rect.left + 'px';
+    highlight.style.top = rect.top + 'px';
+    highlight.style.width = rect.width + 'px';
+    highlight.style.height = rect.height + 'px';
+    highlight.style.display = 'block';
+  } else {
+    highlight.style.display = 'none';
+  }
+
+  // Position card relative to highlight
+  const card = overlay.querySelector('.walkthrough-card');
+  if (el && step.position === 'below') {
+    card.style.position = 'absolute';
+    card.style.top = (rect.bottom + 16) + 'px';
+    card.style.left = '50%';
+    card.style.transform = 'translateX(-50%)';
+    card.style.margin = '0';
+  } else if (el && step.position === 'above') {
+    card.style.position = 'absolute';
+    card.style.bottom = (window.innerHeight - rect.top + 16) + 'px';
+    card.style.left = '50%';
+    card.style.transform = 'translateX(-50%)';
+    card.style.margin = '0';
+  } else if (el && step.position === 'right') {
+    card.style.position = 'absolute';
+    card.style.top = '50%';
+    card.style.left = (rect.right + 20) + 'px';
+    card.style.transform = 'translateY(-50%)';
+    card.style.margin = '0';
+  } else if (el && step.position === 'left') {
+    card.style.position = 'absolute';
+    card.style.top = '50%';
+    card.style.right = (window.innerWidth - rect.left + 20) + 'px';
+    card.style.transform = 'translateY(-50%)';
+    card.style.margin = '0';
+  } else {
+    card.style.position = 'relative';
+    card.style.top = 'auto';
+    card.style.left = 'auto';
+    card.style.right = 'auto';
+    card.style.bottom = 'auto';
+    card.style.transform = 'none';
+    card.style.margin = '0 auto';
+  }
+
+  // Update dots
+  dots.innerHTML = walkthroughSteps.map((_, i) =>
+    `<div class="walkthrough-dot ${i === walkthroughIndex ? 'active' : ''} ${i < walkthroughIndex ? 'done' : ''}"></div>`
+  ).join('');
+
+  // Update buttons
+  document.getElementById('walkthroughBack').style.visibility = walkthroughIndex === 0 ? 'hidden' : 'visible';
+  document.getElementById('walkthroughNext').textContent = walkthroughIndex === walkthroughSteps.length - 1 ? 'Start Brainstorming' : 'Next';
+}
+
+function walkthroughNext() {
+  if (walkthroughIndex < walkthroughSteps.length - 1) {
+    walkthroughIndex++;
+    showWalkthroughStep();
+  } else {
+    endWalkthrough();
+    localStorage.setItem('walkthrough_done', '1');
+  }
+}
+
+function walkthroughPrev() {
+  if (walkthroughIndex > 0) {
+    walkthroughIndex--;
+    showWalkthroughStep();
+  }
+}
+
+function endWalkthrough() {
+  document.getElementById('walkthroughOverlay').classList.remove('active');
+  document.getElementById('walkthroughHighlight').style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+// Show walkthrough on first visit
+if (!localStorage.getItem('walkthrough_done')) {
+  setTimeout(startWalkthrough, 800);
+}

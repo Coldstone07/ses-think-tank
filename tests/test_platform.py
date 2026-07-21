@@ -322,7 +322,7 @@ def test_marketplace_stats(tmp_marketplace_db):
 def test_init_marketplace_schema(tmp_marketplace_db):
     """Verify all marketplace tables exist."""
     import sqlite3
-    conn = sqlite3.connect(str(tmp_marketplace_db / "memory.db"))
+    conn = sqlite3.connect(str(tmp_marketplace_db / "marketplace.db"))
     cur = conn.cursor()
     cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
     tables = [row[0] for row in cur.fetchall()]

@@ -40,7 +40,7 @@ passed = failed = 0
 results = []
 
 
-def test(name, category=""):
+def _test(name, category=""):
     def wrap(fn):
         results.append((category, name, fn))
         return fn
@@ -159,7 +159,7 @@ def ensure_session(sid="ev-s1"):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test(
+@_test(
     "calculate_synergy_metrics returns dict with all required fields",
     category="Metrics",
 )
@@ -180,7 +180,7 @@ def t01():
         inside(k, m)
 
 
-@test("cross_reference_rate is between 0 and 1", category="Metrics")
+@_test("cross_reference_rate is between 0 and 1", category="Metrics")
 def t02():
     session = make_session()
     session.messages = [
@@ -192,7 +192,7 @@ def t02():
     between(m["cross_reference_rate"], 0.0, 1.0)
 
 
-@test("friction_level is between 0 and 1", category="Metrics")
+@_test("friction_level is between 0 and 1", category="Metrics")
 def t03():
     session = make_session()
     session.messages = [
@@ -204,7 +204,7 @@ def t03():
     between(m["friction_level"], 0.0, 1.0)
 
 
-@test("convergence_score is between 0 and 1", category="Metrics")
+@_test("convergence_score is between 0 and 1", category="Metrics")
 def t04():
     session = make_session()
     session.messages = [
@@ -216,7 +216,7 @@ def t04():
     between(m["convergence_score"], 0.0, 1.0)
 
 
-@test("idea_diversity is non-negative integer", category="Metrics")
+@_test("idea_diversity is non-negative integer", category="Metrics")
 def t05():
     session = make_session()
     session.messages = [
@@ -229,7 +229,7 @@ def t05():
     gte(m["idea_diversity"], 0)
 
 
-@test("participation_balance is between 0 and 1", category="Metrics")
+@_test("participation_balance is between 0 and 1", category="Metrics")
 def t06():
     session = make_session()
     for pid in PERSONA_IDS[:3]:
@@ -241,7 +241,7 @@ def t06():
     between(m["participation_balance"], 0.0, 1.0)
 
 
-@test(
+@_test(
     "participation_counts dict has entries for all persona IDs that spoke",
     category="Metrics",
 )
@@ -257,13 +257,13 @@ def t07():
     inside("elena", m["participation_counts"])
 
 
-@test("history is empty by default", category="Metrics")
+@_test("history is empty by default", category="Metrics")
 def t08():
     session = make_session()
     eq(session.metrics_history, [])
 
 
-@test("Metrics update after each turn", category="Metrics")
+@_test("Metrics update after each turn", category="Metrics")
 def t09():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "First message")]
@@ -275,7 +275,7 @@ def t09():
     check(m2["turn_count"] if "turn_count" in m2 else m2 != m1)
 
 
-@test(
+@_test(
     "Cross-reference rate increases when personas mention each other",
     category="Metrics",
 )
@@ -291,7 +291,7 @@ def t10():
     gt(m_ref["cross_reference_rate"], m_no_ref["cross_reference_rate"])
 
 
-@test("Friction level increases when disagreement keywords appear", category="Metrics")
+@_test("Friction level increases when disagreement keywords appear", category="Metrics")
 def t11():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Nice weather today")]
@@ -306,7 +306,7 @@ def t11():
     gt(m_high["friction_level"], m_low["friction_level"])
 
 
-@test("Convergence score changes with repeated topics", category="Metrics")
+@_test("Convergence score changes with repeated topics", category="Metrics")
 def t12():
     session = make_session()
     session.messages = [
@@ -326,7 +326,7 @@ def t12():
     gt(m_with_overlap["convergence_score"], m_no_overlap["convergence_score"])
 
 
-@test(
+@_test(
     "Participation balance is 1.0 when all personas speak equally", category="Metrics"
 )
 def t13():
@@ -341,7 +341,7 @@ def t13():
     eq(m["participation_balance"], 1.0)
 
 
-@test("Participation balance is low when one persona dominates", category="Metrics")
+@_test("Participation balance is low when one persona dominates", category="Metrics")
 def t14():
     session = make_session()
     for _ in range(20):
@@ -352,7 +352,7 @@ def t14():
     lt(m["participation_balance"], 0.5)
 
 
-@test("Metrics start at zero for new session", category="Metrics")
+@_test("Metrics start at zero for new session", category="Metrics")
 def t15():
     session = make_session()
     m = calculate_synergy_metrics(session)
@@ -364,7 +364,7 @@ def t15():
     eq(m["health"], "green")
 
 
-@test("health field is one of green/yellow/red", category="Metrics")
+@_test("health field is one of green/yellow/red", category="Metrics")
 def t16():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Hello")]
@@ -373,7 +373,7 @@ def t16():
     inside(m["health"], {"green", "yellow", "red"})
 
 
-@test("Cross-reference rate exactly 0 when no names mentioned", category="Metrics")
+@_test("Cross-reference rate exactly 0 when no names mentioned", category="Metrics")
 def t17():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Nothing about other people here")]
@@ -382,7 +382,7 @@ def t17():
     eq(m["cross_reference_rate"], 0.0)
 
 
-@test("Friction level exactly 0 when no disagreement keywords", category="Metrics")
+@_test("Friction level exactly 0 when no disagreement keywords", category="Metrics")
 def t18():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Sunshine and rainbows everywhere")]
@@ -391,7 +391,7 @@ def t18():
     eq(m["friction_level"], 0.0)
 
 
-@test("health is green when all conditions are met", category="Metrics")
+@_test("health is green when all conditions are met", category="Metrics")
 def t19a():
     session = make_session()
     session.messages = [
@@ -412,7 +412,7 @@ def t19a():
         eq(m["health"], "green")
 
 
-@test("health is yellow when cross_reference_rate > 0.1", category="Metrics")
+@_test("health is yellow when cross_reference_rate > 0.1", category="Metrics")
 def t19b():
     session = make_session()
     session.messages = [
@@ -429,7 +429,7 @@ def t19b():
         inside(m["health"], {"yellow", "red"})
 
 
-@test(
+@_test(
     "Metrics only from system messages produce empty participation", category="Metrics"
 )
 def t19c():
@@ -451,7 +451,7 @@ def t19c():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("GET /api/sessions/ev-s1/metrics returns 200", category="API")
+@_test("GET /api/sessions/ev-s1/metrics returns 200", category="API")
 def t20():
     eq(
         requests.get(f"{BASE_URL}/api/sessions/ev-s1/metrics", timeout=10).status_code,
@@ -459,7 +459,7 @@ def t20():
     )
 
 
-@test("GET /api/sessions/ev-s1/metrics/history returns 200", category="API")
+@_test("GET /api/sessions/ev-s1/metrics/history returns 200", category="API")
 def t21():
     eq(
         requests.get(
@@ -469,7 +469,7 @@ def t21():
     )
 
 
-@test("Metrics endpoint returns valid JSON with required fields", category="API")
+@_test("Metrics endpoint returns valid JSON with required fields", category="API")
 def t22():
     r = requests.get(f"{BASE_URL}/api/sessions/ev-s1/metrics", timeout=10)
     data = r.json()
@@ -484,14 +484,14 @@ def t22():
         inside(k, data)
 
 
-@test("History endpoint returns array", category="API")
+@_test("History endpoint returns array", category="API")
 def t23():
     r = requests.get(f"{BASE_URL}/api/sessions/ev-s1/metrics/history", timeout=10)
     data = r.json()
     check(isinstance(data, list))
 
 
-@test("Non-existent session returns error for metrics", category="API")
+@_test("Non-existent session returns error for metrics", category="API")
 def t24():
     r = requests.get(
         f"{BASE_URL}/api/sessions/nonexistent-session-xyz/metrics", timeout=10
@@ -500,7 +500,7 @@ def t24():
     inside("error", r.json())
 
 
-@test("Non-existent session returns error for history", category="API")
+@_test("Non-existent session returns error for history", category="API")
 def t25():
     r = requests.get(
         f"{BASE_URL}/api/sessions/nonexistent-session-xyz/metrics/history", timeout=10
@@ -509,7 +509,7 @@ def t25():
     inside("error", data)
 
 
-@test("POST /api/sessions/ev-s1/intervene returns 200", category="API")
+@_test("POST /api/sessions/ev-s1/intervene returns 200", category="API")
 def t26():
     r = requests.post(
         f"{BASE_URL}/api/sessions/ev-s1/intervene",
@@ -521,7 +521,7 @@ def t26():
     eq(r.json()["status"], "intervened")
 
 
-@test("Intervene without message returns error", category="API")
+@_test("Intervene without message returns error", category="API")
 def t27():
     r = requests.post(
         f"{BASE_URL}/api/sessions/ev-s1/intervene",
@@ -531,7 +531,7 @@ def t27():
     inside("error", r.json())
 
 
-@test("Intervene on non-existent session returns error", category="API")
+@_test("Intervene on non-existent session returns error", category="API")
 def t28():
     r = requests.post(
         f"{BASE_URL}/api/sessions/nonexistent-session-xyz/intervene",
@@ -541,7 +541,7 @@ def t28():
     inside("error", r.json())
 
 
-@test("Metrics have valid range values from API", category="API")
+@_test("Metrics have valid range values from API", category="API")
 def t29():
     r = requests.get(f"{BASE_URL}/api/sessions/ev-s1/metrics", timeout=10)
     data = r.json()
@@ -552,7 +552,7 @@ def t29():
     gte(data.get("idea_diversity", 0), 0)
 
 
-@test("History entries have turn numbers", category="API")
+@_test("History entries have turn numbers", category="API")
 def t30():
     r = requests.get(f"{BASE_URL}/api/sessions/ev-s1/metrics/history", timeout=10)
     data = r.json()
@@ -567,7 +567,7 @@ def t30():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("synergy_metrics event emitted after conversation turn", category="WebSocket")
+@_test("synergy_metrics event emitted after conversation turn", category="WebSocket")
 def t31():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -601,7 +601,7 @@ def t31():
     run_ws(go())
 
 
-@test("synergy_summary event emitted on session_complete", category="WebSocket")
+@_test("synergy_summary event emitted on session_complete", category="WebSocket")
 def t32():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -634,7 +634,7 @@ def t32():
     run_ws(go())
 
 
-@test("Event contains all required fields", category="WebSocket")
+@_test("Event contains all required fields", category="WebSocket")
 def t33():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -678,7 +678,7 @@ def t33():
     run_ws(go())
 
 
-@test("Event metric values are valid ranges", category="WebSocket")
+@_test("Event metric values are valid ranges", category="WebSocket")
 def t34():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -715,7 +715,7 @@ def t34():
     run_ws(go())
 
 
-@test("Multiple turns produce multiple metric events", category="WebSocket")
+@_test("Multiple turns produce multiple metric events", category="WebSocket")
 def t35():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -748,7 +748,7 @@ def t35():
     run_ws(go())
 
 
-@test("History grows with each turn", category="WebSocket")
+@_test("History grows with each turn", category="WebSocket")
 def t36():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -781,7 +781,7 @@ def t36():
     run_ws(go())
 
 
-@test("Invalid WS message handled gracefully", category="WebSocket")
+@_test("Invalid WS message handled gracefully", category="WebSocket")
 def t37():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -798,7 +798,7 @@ def t37():
     run_ws(go())
 
 
-@test("Metrics consistent between WS and API", category="WebSocket")
+@_test("Metrics consistent between WS and API", category="WebSocket")
 def t38():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -838,7 +838,7 @@ def t38():
     run_ws(go())
 
 
-@test("synergy_summary includes full history", category="WebSocket")
+@_test("synergy_summary includes full history", category="WebSocket")
 def t39():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -872,7 +872,7 @@ def t39():
     run_ws(go())
 
 
-@test("Events have correct type field", category="WebSocket")
+@_test("Events have correct type field", category="WebSocket")
 def t40():
     async def go():
         import websockets.asyncio.client as wsmod
@@ -910,7 +910,7 @@ def t40():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("web/index.html contains synergy dashboard HTML", category="UI")
+@_test("web/index.html contains synergy dashboard HTML", category="UI")
 def t41():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -924,7 +924,7 @@ def t41():
     inside("synergy-body", html)
 
 
-@test("Sparkline rendering function exists in JS", category="UI")
+@_test("Sparkline rendering function exists in JS", category="UI")
 def t42():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -938,7 +938,7 @@ def t42():
     inside("sparklineConvergence", html)
 
 
-@test("Participation chart function exists in JS", category="UI")
+@_test("Participation chart function exists in JS", category="UI")
 def t43():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -949,7 +949,7 @@ def t43():
     inside("participationPie", html)
 
 
-@test("Intervention button exists in HTML", category="UI")
+@_test("Intervention button exists in HTML", category="UI")
 def t44():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -961,7 +961,7 @@ def t44():
     inside("Intervene", html)
 
 
-@test("WS synergy_metrics handler exists in JS", category="UI")
+@_test("WS synergy_metrics handler exists in JS", category="UI")
 def t45():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -974,7 +974,7 @@ def t45():
     inside("finishSynergyDashboard", html)
 
 
-@test("Health badge HTML structure exists", category="UI")
+@_test("Health badge HTML structure exists", category="UI")
 def t46():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -986,7 +986,7 @@ def t46():
     inside("synergyHealth" if False else "green", html)  # badge has class 'green'
 
 
-@test("Idea diversity counter exists in HTML", category="UI")
+@_test("Idea diversity counter exists in HTML", category="UI")
 def t47():
     html_path = os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "index.html"
@@ -1002,7 +1002,7 @@ def t47():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("All metric values are numeric", category="Validation")
+@_test("All metric values are numeric", category="Validation")
 def t50():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Test message for numeric check")]
@@ -1015,7 +1015,7 @@ def t50():
     check(isinstance(m["participation_balance"], (int, float)))
 
 
-@test("participation_counts sum equals total non-system turns", category="Validation")
+@_test("participation_counts sum equals total non-system turns", category="Validation")
 def t51():
     session = make_session()
     session.messages = [
@@ -1029,7 +1029,7 @@ def t51():
     eq(total, 3)
 
 
-@test("DISAGREEMENT_KEYWORDS set exists and is non-empty", category="Validation")
+@_test("DISAGREEMENT_KEYWORDS set exists and is non-empty", category="Validation")
 def t52():
     check(isinstance(DISAGREEMENT_KEYWORDS, set))
     gt(len(DISAGREEMENT_KEYWORDS), 0)
@@ -1037,7 +1037,7 @@ def t52():
     inside("however", DISAGREEMENT_KEYWORDS)
 
 
-@test("PERSONA_NAMES dict exists with all 6 personas", category="Validation")
+@_test("PERSONA_NAMES dict exists with all 6 personas", category="Validation")
 def t53():
     check(isinstance(PERSONA_NAMES, dict))
     eq(len(PERSONA_NAMES), 6)
@@ -1051,7 +1051,7 @@ def t53():
     eq(PERSONA_NAMES["sage"], "Sage")
 
 
-@test("Metrics calculation is idempotent", category="Validation")
+@_test("Metrics calculation is idempotent", category="Validation")
 def t54():
     session = make_session()
     session.messages = [
@@ -1069,7 +1069,7 @@ def t54():
     eq(m1["participation_balance"], m2["participation_balance"])
 
 
-@test("Empty conversation produces zero metrics", category="Validation")
+@_test("Empty conversation produces zero metrics", category="Validation")
 def t55():
     session = make_session()
     m = calculate_synergy_metrics(session)
@@ -1081,7 +1081,7 @@ def t55():
     eq(m["health"], "green")
 
 
-@test("Metrics handle single-turn conversations", category="Validation")
+@_test("Metrics handle single-turn conversations", category="Validation")
 def t56():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Single turn with unique vocabulary")]
@@ -1094,7 +1094,7 @@ def t56():
     check(m["health"] in ("green", "yellow", "red"))
 
 
-@test("Metrics handle all-persona conversations", category="Validation")
+@_test("Metrics handle all-persona conversations", category="Validation")
 def t57():
     session = make_session()
     for pid in PERSONA_IDS:
@@ -1107,7 +1107,7 @@ def t57():
     between(m["participation_balance"], 0.0, 1.0)
 
 
-@test("System messages are excluded from metrics", category="Validation")
+@_test("System messages are excluded from metrics", category="Validation")
 def t58():
     session = make_session()
     session.messages = [
@@ -1120,7 +1120,7 @@ def t58():
     inside("rook", m["participation_counts"])
 
 
-@test("All 6 persona names are recognized for cross-reference", category="Validation")
+@_test("All 6 persona names are recognized for cross-reference", category="Validation")
 def t59():
     session = make_session()
     for pid in PERSONA_IDS:
@@ -1138,7 +1138,7 @@ def t59():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("Session with no turns produces zero metrics", category="Edge")
+@_test("Session with no turns produces zero metrics", category="Edge")
 def t60():
     session = make_session()
     m = calculate_synergy_metrics(session)
@@ -1149,7 +1149,7 @@ def t60():
     between(m["participation_balance"], 0.0, 1.0)
 
 
-@test("Session with 1 turn has valid metrics", category="Edge")
+@_test("Session with 1 turn has valid metrics", category="Edge")
 def t61():
     session = make_session()
     session.messages = [make_msg("rook", "Rook", "Just one message here")]
@@ -1163,7 +1163,7 @@ def t61():
     between(m["participation_balance"], 0.0, 1.0)
 
 
-@test("Session with all turns from one persona has low balance", category="Edge")
+@_test("Session with all turns from one persona has low balance", category="Edge")
 def t62():
     session = make_session()
     for i in range(10):
@@ -1176,7 +1176,7 @@ def t62():
     eq(m["participation_counts"]["rook"], 10)
 
 
-@test("Very long conversation metrics don't degrade", category="Edge")
+@_test("Very long conversation metrics don't degrade", category="Edge")
 def t63():
     session = make_session()
     for i in range(100):
@@ -1196,7 +1196,7 @@ def t63():
     inside(m["health"], {"green", "yellow", "red"})
 
 
-@test("Special characters in conversation text handled", category="Edge")
+@_test("Special characters in conversation text handled", category="Edge")
 def t64():
     session = make_session()
     session.messages = [
@@ -1211,7 +1211,7 @@ def t64():
     gte(m["idea_diversity"], 0)
 
 
-@test("Empty messages handled gracefully", category="Edge")
+@_test("Empty messages handled gracefully", category="Edge")
 def t65():
     session = make_session()
     session.messages = [
@@ -1226,7 +1226,7 @@ def t65():
     eq(m["idea_diversity"], 0)
 
 
-@test("Messages with only stop words produce zero idea diversity", category="Edge")
+@_test("Messages with only stop words produce zero idea diversity", category="Edge")
 def t66():
     session = make_session()
     session.messages = [
@@ -1237,7 +1237,7 @@ def t66():
     eq(m["idea_diversity"], 0)
 
 
-@test("Health is green when all conditions met", category="Edge")
+@_test("Health is green when all conditions met", category="Edge")
 def t67():
     session = make_session()
     for pid in PERSONA_IDS[:3]:

@@ -108,9 +108,9 @@ def _exec_http(ec, args, timeout):
 class ToolStore:
     def __init__(self):
         self.tools = {}; self.files = {}; self.errors = []
-    def load_all(self, base_dir="."):
+    def load_all(self, base_dir=".", tools_dir=None):
         self.tools = {}; self.files = {}; self.errors = []
-        td = Path(base_dir) / "plugins" / "tools"
+        td = Path(tools_dir) if tools_dir else (Path(base_dir) / "plugins" / "tools")
         if not td.is_dir(): return {"loaded": 0, "errors": 0, "tools": [], "errors_detail": []}
         for fn in sorted(os.listdir(str(td))):
             if not fn.endswith((".yaml", ".yml")): continue

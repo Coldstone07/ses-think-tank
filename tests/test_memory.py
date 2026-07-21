@@ -53,7 +53,7 @@ passed = failed = 0
 results = []
 
 
-def test(name, category=""):
+def _test(name, category=""):
     def wrap(fn):
         results.append((category, name, fn))
         return fn
@@ -188,7 +188,7 @@ def ensure_test_session(sid="test-mem-session"):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("init_memory_db creates all required tables", category="DB")
+@_test("init_memory_db creates all required tables", category="DB")
 def t01():
     init_memory_db()
     conn = sqlite3.connect(str(MEMORY_DB_PATH))
@@ -205,7 +205,7 @@ def t01():
         inside(t, tables)
 
 
-@test("memory_sessions table has correct schema", category="DB")
+@_test("memory_sessions table has correct schema", category="DB")
 def t02():
     conn = sqlite3.connect(str(MEMORY_DB_PATH))
     cur = conn.cursor()
@@ -227,7 +227,7 @@ def t02():
         eq(cols[col], dtype)
 
 
-@test("memory_pins table has correct schema", category="DB")
+@_test("memory_pins table has correct schema", category="DB")
 def t03():
     conn = sqlite3.connect(str(MEMORY_DB_PATH))
     cur = conn.cursor()
@@ -246,7 +246,7 @@ def t03():
         inside(col, cols)
 
 
-@test("persona_interactions table has correct schema", category="DB")
+@_test("persona_interactions table has correct schema", category="DB")
 def t04():
     conn = sqlite3.connect(str(MEMORY_DB_PATH))
     cur = conn.cursor()
@@ -257,7 +257,7 @@ def t04():
         inside(col, cols)
 
 
-@test("cross_references table has correct schema", category="DB")
+@_test("cross_references table has correct schema", category="DB")
 def t05():
     conn = sqlite3.connect(str(MEMORY_DB_PATH))
     cur = conn.cursor()
@@ -274,7 +274,7 @@ def t05():
         inside(col, cols)
 
 
-@test("populate_memory inserts a session record", category="DB")
+@_test("populate_memory inserts a session record", category="DB")
 def t06():
     clean_test_db()
     sid = f"db-test-{str(uuid.uuid4())[:8]}"
@@ -294,7 +294,7 @@ def t06():
     eq(row[2], "Test deliverable output")
 
 
-@test("populate_memory extracts whiteboard pins into memory_pins", category="DB")
+@_test("populate_memory extracts whiteboard pins into memory_pins", category="DB")
 def t07():
     clean_test_db()
     sid = f"db-pins-{str(uuid.uuid4())[:8]}"
@@ -326,7 +326,7 @@ def t07():
     inside("pin002", ids)
 
 
-@test("populate_memory records persona interaction counts", category="DB")
+@_test("populate_memory records persona interaction counts", category="DB")
 def t08():
     clean_test_db()
     sid = f"db-interact-{str(uuid.uuid4())[:8]}"
@@ -352,7 +352,7 @@ def t08():
     eq(counts["elena"], 1)
 
 
-@test("populate_memory handles session with no whiteboard pins", category="DB")
+@_test("populate_memory handles session with no whiteboard pins", category="DB")
 def t09():
     clean_test_db()
     sid = f"db-nopins-{str(uuid.uuid4())[:8]}"
@@ -367,7 +367,7 @@ def t09():
     eq(count, 0)
 
 
-@test("DB file exists at expected path", category="DB")
+@_test("DB file exists at expected path", category="DB")
 def t10():
     check(os.path.exists(str(MEMORY_DB_PATH)), f"DB file not found at {MEMORY_DB_PATH}")
 
@@ -377,13 +377,13 @@ def t10():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("GET /api/memory/sessions returns 200", category="Search API")
+@_test("GET /api/memory/sessions returns 200", category="Search API")
 def t11():
     r = requests.get(f"{BASE_URL}/api/memory/sessions", timeout=10)
     eq(r.status_code, 200)
 
 
-@test(
+@_test(
     "GET /api/memory/sessions?topic=X returns matching sessions", category="Search API"
 )
 def t12():
@@ -398,7 +398,7 @@ def t12():
     gt(len(matches), 0)
 
 
-@test(
+@_test(
     "GET /api/memory/sessions?persona=X returns matching sessions",
     category="Search API",
 )
@@ -415,7 +415,7 @@ def t13():
         inside("rook", s.get("persona_ids", []))
 
 
-@test(
+@_test(
     "GET /api/memory/sessions with no params returns all sessions",
     category="Search API",
 )
@@ -426,7 +426,7 @@ def t14():
     check(isinstance(data, list))
 
 
-@test(
+@_test(
     "GET /api/memory/session/{id} returns full record with pins and interactions",
     category="Search API",
 )
@@ -446,7 +446,7 @@ def t15():
     gte(len(data["interactions"]), 1)
 
 
-@test("GET /api/memory/session/{nonexistent} returns error", category="Search API")
+@_test("GET /api/memory/session/{nonexistent} returns error", category="Search API")
 def t16():
     r = requests.get(
         f"{BASE_URL}/api/memory/session/nonexistent-session-12345", timeout=10
@@ -455,7 +455,7 @@ def t16():
     inside("error", data)
 
 
-@test("Search is case-insensitive", category="Search API")
+@_test("Search is case-insensitive", category="Search API")
 def t17():
     sid = f"search-case-{str(uuid.uuid4())[:8]}"
     session = make_session(sid=sid, topic="Case Sensitivity Test")
@@ -469,7 +469,7 @@ def t17():
     inside(sid, sid_list)
 
 
-@test("Multiple topic keywords work", category="Search API")
+@_test("Multiple topic keywords work", category="Search API")
 def t18():
     sid = f"search-multi-{str(uuid.uuid4())[:8]}"
     session = make_session(sid=sid, topic="Artificial Intelligence Machine Learning")
@@ -483,7 +483,7 @@ def t18():
     inside(sid, sid_list)
 
 
-@test("Persona filter only returns sessions with that persona", category="Search API")
+@_test("Persona filter only returns sessions with that persona", category="Search API")
 def t19():
     sid1 = f"pf-{str(uuid.uuid4())[:8]}"
     sid2 = f"pf-{str(uuid.uuid4())[:8]}"
@@ -499,7 +499,7 @@ def t19():
         inside("rook", pid_list)
 
 
-@test("Search returns empty list when topic has no matches", category="Search API")
+@_test("Search returns empty list when topic has no matches", category="Search API")
 def t20():
     r = requests.get(
         f"{BASE_URL}/api/memory/sessions?topic=zzzzzxyznonexistenttopic", timeout=10
@@ -514,13 +514,13 @@ def t20():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("GET /api/memory/insights/{topic} returns 200", category="Insights")
+@_test("GET /api/memory/insights/{topic} returns 200", category="Insights")
 def t21():
     r = requests.get(f"{BASE_URL}/api/memory/insights/Test", timeout=10)
     eq(r.status_code, 200)
 
 
-@test("Insights response contains session_count field", category="Insights")
+@_test("Insights response contains session_count field", category="Insights")
 def t22():
     r = requests.get(f"{BASE_URL}/api/memory/insights/Test", timeout=10)
     eq(r.status_code, 200)
@@ -528,7 +528,7 @@ def t22():
     inside("session_count", data)
 
 
-@test(
+@_test(
     "Insights response contains similar_sessions or insights array", category="Insights"
 )
 def t23():
@@ -538,7 +538,7 @@ def t23():
     check("similar_sessions" in data or "insights" in data)
 
 
-@test("Empty insights when no matching sessions", category="Insights")
+@_test("Empty insights when no matching sessions", category="Insights")
 def t24():
     r = requests.get(
         f"{BASE_URL}/api/memory/insights/zzzzxzyznonexistenttopic", timeout=10
@@ -549,7 +549,7 @@ def t24():
     eq(data["insights"], [])
 
 
-@test("Insights aggregate findings from multiple sessions", category="Insights")
+@_test("Insights aggregate findings from multiple sessions", category="Insights")
 def t25():
     tag = uuid.uuid4().hex[:6]
     sid1 = f"ins-aggr1-{tag}"
@@ -588,7 +588,7 @@ def t25():
     inside("persona_frequency", data)
 
 
-@test("Cross-session response has valid structure", category="Insights")
+@_test("Cross-session response has valid structure", category="Insights")
 def t26():
     r = requests.get(f"{BASE_URL}/api/memory/insights/Test", timeout=10)
     eq(r.status_code, 200)
@@ -608,7 +608,7 @@ def t26():
         check(isinstance(data["insights"], list))
 
 
-@test("Topic matching works with partial keywords", category="Insights")
+@_test("Topic matching works with partial keywords", category="Insights")
 def t27():
     sid = f"ins-partial-{str(uuid.uuid4())[:8]}"
     session = make_session(sid=sid, topic="Machine Learning for Healthcare")
@@ -619,7 +619,7 @@ def t27():
     gte(data["session_count"], 1)
 
 
-@test("Cross-session similar_sessions has valid structure", category="Insights")
+@_test("Cross-session similar_sessions has valid structure", category="Insights")
 def t28():
     r = requests.get(f"{BASE_URL}/api/memory/insights/Test", timeout=10)
     eq(r.status_code, 200)
@@ -635,13 +635,13 @@ def t28():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("GET /api/memory/recommended-team/{topic} returns 200", category="Recommendation")
+@_test("GET /api/memory/recommended-team/{topic} returns 200", category="Recommendation")
 def t29():
     r = requests.get(f"{BASE_URL}/api/memory/recommended-team/Test", timeout=10)
     eq(r.status_code, 200)
 
 
-@test("Response contains recommended_personas array", category="Recommendation")
+@_test("Response contains recommended_personas array", category="Recommendation")
 def t30():
     r = requests.get(f"{BASE_URL}/api/memory/recommended-team/Test", timeout=10)
     eq(r.status_code, 200)
@@ -650,7 +650,7 @@ def t30():
     check(isinstance(data["recommended_personas"], list))
 
 
-@test("Response contains reasoning string", category="Recommendation")
+@_test("Response contains reasoning string", category="Recommendation")
 def t31():
     r = requests.get(f"{BASE_URL}/api/memory/recommended-team/Test", timeout=10)
     eq(r.status_code, 200)
@@ -660,7 +660,7 @@ def t31():
     gt(len(data["reasoning"]), 0)
 
 
-@test("Empty recommendation when no history", category="Recommendation")
+@_test("Empty recommendation when no history", category="Recommendation")
 def t32():
     r = requests.get(
         f"{BASE_URL}/api/memory/recommended-team/zzzzzxyznonexistenttopic", timeout=10
@@ -671,7 +671,7 @@ def t32():
     inside("No past sessions", data["reasoning"])
 
 
-@test("Recommendation based on past successful sessions", category="Recommendation")
+@_test("Recommendation based on past successful sessions", category="Recommendation")
 def t33():
     tag = uuid.uuid4().hex[:6]
     sid = f"rec-succ-{tag}"
@@ -694,7 +694,7 @@ def t33():
     check(len(data["recommended_personas"]) > 0 or data["reasoning"] is not None)
 
 
-@test("Multiple personas can be recommended", category="Recommendation")
+@_test("Multiple personas can be recommended", category="Recommendation")
 def t34():
     tag = uuid.uuid4().hex[:6]
     for i in range(3):
@@ -706,7 +706,7 @@ def t34():
     gte(len(data["recommended_personas"]), 1)
 
 
-@test("Persona frequency influences recommendation", category="Recommendation")
+@_test("Persona frequency influences recommendation", category="Recommendation")
 def t35():
     tag = uuid.uuid4().hex[:6]
     for i in range(5):
@@ -722,7 +722,7 @@ def t35():
     gt(len(data["reasoning"]), 10)
 
 
-@test("Recommendation response structure is valid", category="Recommendation")
+@_test("Recommendation response structure is valid", category="Recommendation")
 def t36():
     r = requests.get(f"{BASE_URL}/api/memory/recommended-team/Test", timeout=10)
     eq(r.status_code, 200)
@@ -738,7 +738,7 @@ def t36():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("populate_memory with mock session works", category="Population")
+@_test("populate_memory with mock session works", category="Population")
 def t37():
     clean_test_db()
     sid = f"pop-mock-{str(uuid.uuid4())[:8]}"
@@ -750,7 +750,7 @@ def t37():
     eq(result["topic"], "Population Unit Test")
 
 
-@test("Whiteboard pins extracted correctly from session", category="Population")
+@_test("Whiteboard pins extracted correctly from session", category="Population")
 def t38():
     clean_test_db()
     sid = f"pop-pins-{str(uuid.uuid4())[:8]}"
@@ -773,7 +773,7 @@ def t38():
     inside("Idea B", pin_topics)
 
 
-@test("Persona interaction counts are accurate", category="Population")
+@_test("Persona interaction counts are accurate", category="Population")
 def t39():
     clean_test_db()
     sid = f"pop-counts-{str(uuid.uuid4())[:8]}"
@@ -793,7 +793,7 @@ def t39():
     eq(interactions["kael"], 1)
 
 
-@test("Session summary is stored from topic words", category="Population")
+@_test("Session summary is stored from topic words", category="Population")
 def t40():
     clean_test_db()
     sid = f"pop-summary-{str(uuid.uuid4())[:8]}"
@@ -808,7 +808,7 @@ def t40():
     inside("robotics", sl, f"Expected 'robotics' in summary '{summary}'")
 
 
-@test("Key findings extraction via insights uses pins", category="Population")
+@_test("Key findings extraction via insights uses pins", category="Population")
 def t41():
     clean_test_db()
     sid = f"pop-findings-{str(uuid.uuid4())[:8]}"
@@ -834,7 +834,7 @@ def t41():
     gte(len(insights["key_findings"]), 0)
 
 
-@test("Synergy score is recorded from session metrics", category="Population")
+@_test("Synergy score is recorded from session metrics", category="Population")
 def t41b():
     clean_test_db()
     sid = f"pop-synergy-{str(uuid.uuid4())[:8]}"
@@ -852,7 +852,7 @@ def t41b():
     check(result is not None)
 
 
-@test("Handles session with no whiteboard pins gracefully", category="Population")
+@_test("Handles session with no whiteboard pins gracefully", category="Population")
 def t42():
     clean_test_db()
     sid = f"pop-empty-pins-{str(uuid.uuid4())[:8]}"
@@ -864,7 +864,7 @@ def t42():
     eq(len(result.get("pins", [])), 0)
 
 
-@test("Handles session with no messages gracefully", category="Population")
+@_test("Handles session with no messages gracefully", category="Population")
 def t43():
     clean_test_db()
     sid = f"pop-no-msgs-{str(uuid.uuid4())[:8]}"
@@ -882,20 +882,20 @@ def t43():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("memory_suggestion event exists in app code", category="WS")
+@_test("memory_suggestion event exists in app code", category="WS")
 def t44():
     with open(BASE_DIR / "app.py", encoding="utf-8") as f:
         src = f.read()
     inside("memory_suggestion", src)
 
 
-@test("get_memory_suggestions returns None when no matches", category="WS")
+@_test("get_memory_suggestions returns None when no matches", category="WS")
 def t45():
     result = get_memory_suggestions("zzzzzxyznonexistenttopic12345")
     eq(result, None)
 
 
-@test("get_memory_suggestions includes match_count", category="WS")
+@_test("get_memory_suggestions includes match_count", category="WS")
 def t46():
     sid = f"ws-sugg-{str(uuid.uuid4())[:8]}"
     session = make_session(sid=sid, topic="Suggestion Topic Test")
@@ -909,7 +909,7 @@ def t46():
         check(True, "No suggestion returned (topic words filtered)")
 
 
-@test("get_memory_suggestions includes relevant session IDs", category="WS")
+@_test("get_memory_suggestions includes relevant session IDs", category="WS")
 def t47():
     sid = f"ws-ids-{str(uuid.uuid4())[:8]}"
     session = make_session(sid=sid, topic="Session ID Test")
@@ -923,7 +923,7 @@ def t47():
         check(True, "No suggestion returned")
 
 
-@test("memory_suggestion triggered on start_conversation over WS", category="WS")
+@_test("memory_suggestion triggered on start_conversation over WS", category="WS")
 def t48():
     async def check_ws():
         import websockets.asyncio.client as wsmod
@@ -961,7 +961,7 @@ def t48():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("Memory panel HTML exists in index.html", category="UI")
+@_test("Memory panel HTML exists in index.html", category="UI")
 def t49():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -969,7 +969,7 @@ def t49():
     inside("memoryResults", html)
 
 
-@test("Memory search input exists in HTML", category="UI")
+@_test("Memory search input exists in HTML", category="UI")
 def t50():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -977,7 +977,7 @@ def t50():
     inside("searchMemory", html)
 
 
-@test("Session card rendering function exists in JS", category="UI")
+@_test("Session card rendering function exists in JS", category="UI")
 def t51():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -985,7 +985,7 @@ def t51():
     inside("memory-card", html)
 
 
-@test("Memory count badge exists", category="UI")
+@_test("Memory count badge exists", category="UI")
 def t52():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -993,7 +993,7 @@ def t52():
     inside("updateMemoryCount", html)
 
 
-@test("Expand/collapse functionality exists for memory cards", category="UI")
+@_test("Expand/collapse functionality exists for memory cards", category="UI")
 def t53():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1001,7 +1001,7 @@ def t53():
     inside("expanded", html)
 
 
-@test("WebSocket memory handler exists in JS", category="UI")
+@_test("WebSocket memory handler exists in JS", category="UI")
 def t54():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1014,7 +1014,7 @@ def t54():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-@test("Very long topic strings handled", category="Edge")
+@_test("Very long topic strings handled", category="Edge")
 def t55():
     sid = f"edge-long-{str(uuid.uuid4())[:8]}"
     long_topic = "A " * 250 + "Long Topic"
@@ -1025,7 +1025,7 @@ def t55():
     eq(result["session_id"], sid)
 
 
-@test("Special characters in topics handled", category="Edge")
+@_test("Special characters in topics handled", category="Edge")
 def t56():
     sid = f"edge-special-{str(uuid.uuid4())[:8]}"
     special_topic = "C++ & C#: Object-Oriented @ 100% (2024) [TEST] {url}"
@@ -1035,7 +1035,7 @@ def t56():
     eq(r.status_code, 200)
 
 
-@test("Unicode in session summaries handled", category="Edge")
+@_test("Unicode in session summaries handled", category="Edge")
 def t57():
     sid = f"edge-unicode-{str(uuid.uuid4())[:8]}"
     unicode_topic = "Résumé • Café über München 日本語 中文 العربية"
@@ -1046,7 +1046,7 @@ def t57():
     eq(result["session_id"], sid)
 
 
-@test("Concurrent memory writes don't corrupt DB", category="Edge")
+@_test("Concurrent memory writes don't corrupt DB", category="Edge")
 def t58():
     clean_test_db()
     import threading
@@ -1084,7 +1084,7 @@ def t58():
     eq(count, 10, f"Expected 10 sessions, got {count}")
 
 
-@test("Empty string topic returns all sessions", category="Edge")
+@_test("Empty string topic returns all sessions", category="Edge")
 def t59():
     r = requests.get(f"{BASE_URL}/api/memory/sessions?topic=", timeout=10)
     eq(r.status_code, 200)

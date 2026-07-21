@@ -56,7 +56,7 @@ def _ensure_session():
         pass
 
 
-def test(name, category=""):
+def _test(name, category=""):
     def wrap(fn):
         results.append((category, name, fn))
         return fn
@@ -162,26 +162,26 @@ def setup_pin(topic="WS Test"):
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@test("GET /api/sessions/{id}/whiteboard returns 200", category="API")
+@_test("GET /api/sessions/{id}/whiteboard returns 200", category="API")
 def t01():
     r = requests.get(f"{BASE_URL}/api/sessions/{SESSION_ID}/whiteboard", timeout=10)
     eq(r.status_code, 200)
 
 
-@test("GET whiteboard returns a dict", category="API")
+@_test("GET whiteboard returns a dict", category="API")
 def t02():
     r = requests.get(f"{BASE_URL}/api/sessions/{SESSION_ID}/whiteboard", timeout=10)
     check(isinstance(r.json(), dict))
 
 
-@test("GET whiteboard on clean session is empty dict", category="API")
+@_test("GET whiteboard on clean session is empty dict", category="API")
 def t03():
     cleanup_pins()
     r = requests.get(f"{BASE_URL}/api/sessions/{SESSION_ID}/whiteboard", timeout=10)
     eq(r.json(), {})
 
 
-@test("POST pin creates pin with all required fields", category="API")
+@_test("POST pin creates pin with all required fields", category="API")
 def t04():
     cleanup_pins()
     pin = create_pin().json()
@@ -198,35 +198,35 @@ def t04():
         inside(field, pin, f"Missing field: {field}")
 
 
-@test("POST pin default status is pending", category="API")
+@_test("POST pin default status is pending", category="API")
 def t05():
     cleanup_pins()
     pin = create_pin().json()
     eq(pin["status"], "pending")
 
 
-@test("POST pin votes dict starts empty", category="API")
+@_test("POST pin votes dict starts empty", category="API")
 def t06():
     cleanup_pins()
     pin = create_pin().json()
     eq(pin["votes"], {})
 
 
-@test("POST pin comments list starts empty", category="API")
+@_test("POST pin comments list starts empty", category="API")
 def t07():
     cleanup_pins()
     pin = create_pin().json()
     eq(pin["comments"], [])
 
 
-@test("POST pin id is 8-char hex string", category="API")
+@_test("POST pin id is 8-char hex string", category="API")
 def t08():
     cleanup_pins()
     pin = create_pin().json()
     check(is_hex8(pin["id"]), f"Invalid pin id format: {pin['id']!r}")
 
 
-@test("POST pin created_at is valid unix timestamp", category="API")
+@_test("POST pin created_at is valid unix timestamp", category="API")
 def t09():
     cleanup_pins()
     pin = create_pin().json()
@@ -234,7 +234,7 @@ def t09():
     gt(pin["created_at"], 1_700_000_000)
 
 
-@test("POST pin without topic defaults to empty string", category="API")
+@_test("POST pin without topic defaults to empty string", category="API")
 def t10():
     cleanup_pins()
     r = requests.post(
@@ -247,7 +247,7 @@ def t10():
     eq(pin.get("topic"), "")
 
 
-@test("POST pin without content defaults to empty string", category="API")
+@_test("POST pin without content defaults to empty string", category="API")
 def t11():
     cleanup_pins()
     r = requests.post(
@@ -260,7 +260,7 @@ def t11():
     eq(pin.get("content"), "")
 
 
-@test("POST pin to non-existent session returns error", category="API")
+@_test("POST pin to non-existent session returns error", category="API")
 def t12():
     r = requests.post(
         f"{BASE_URL}/api/sessions/nonexistent_session/whiteboard/pin",
@@ -271,7 +271,7 @@ def t12():
     inside("error", data)
 
 
-@test("POST pin author defaults to unknown when omitted", category="API")
+@_test("POST pin author defaults to unknown when omitted", category="API")
 def t13():
     cleanup_pins()
     r = requests.post(
@@ -282,7 +282,7 @@ def t13():
     eq(r.json().get("author"), "unknown")
 
 
-@test("PUT vote approve on pin works", category="API")
+@_test("PUT vote approve on pin works", category="API")
 def t14():
     pin = setup_pin()
     r = requests.put(
@@ -294,7 +294,7 @@ def t14():
     eq(r.json()["votes"].get("rook"), "approve")
 
 
-@test("PUT vote reject on pin works", category="API")
+@_test("PUT vote reject on pin works", category="API")
 def t15():
     pin = setup_pin()
     r = requests.put(
@@ -305,7 +305,7 @@ def t15():
     eq(r.json()["votes"].get("elena"), "reject")
 
 
-@test("PUT vote neutral on pin works", category="API")
+@_test("PUT vote neutral on pin works", category="API")
 def t16():
     pin = setup_pin()
     r = requests.put(
@@ -316,7 +316,7 @@ def t16():
     eq(r.json()["votes"].get("kael"), "neutral")
 
 
-@test("PUT vote with invalid type returns error", category="API")
+@_test("PUT vote with invalid type returns error", category="API")
 def t17():
     pin = setup_pin()
     r = requests.put(
@@ -327,7 +327,7 @@ def t17():
     inside("error", r.json())
 
 
-@test("PUT vote on non-existent pin returns error", category="API")
+@_test("PUT vote on non-existent pin returns error", category="API")
 def t18():
     r = requests.put(
         f"{BASE_URL}/api/sessions/{SESSION_ID}/whiteboard/pins/nonexistent/vote",
@@ -337,7 +337,7 @@ def t18():
     inside("error", r.json())
 
 
-@test("GET whiteboard reflects vote after PUT", category="API")
+@_test("GET whiteboard reflects vote after PUT", category="API")
 def t19():
     pin = setup_pin()
     pid = pin["id"]
@@ -350,7 +350,7 @@ def t19():
     eq(wb[pid]["votes"].get("maya"), "approve")
 
 
-@test("PUT comment on pin works", category="API")
+@_test("PUT comment on pin works", category="API")
 def t20():
     pin = setup_pin()
     r = requests.put(
@@ -366,7 +366,7 @@ def t20():
     inside("timestamp", updated["comments"][0])
 
 
-@test("GET whiteboard reflects comment after PUT", category="API")
+@_test("GET whiteboard reflects comment after PUT", category="API")
 def t21():
     pin = setup_pin()
     pid = pin["id"]
@@ -381,7 +381,7 @@ def t21():
     eq(wb[pid]["comments"][0]["text"], "Needs more data")
 
 
-@test("PUT status update to approved works", category="API")
+@_test("PUT status update to approved works", category="API")
 def t22():
     pin = setup_pin()
     r = requests.put(
@@ -393,7 +393,7 @@ def t22():
     eq(r.json()["status"], "approved")
 
 
-@test("PUT status update to rejected works", category="API")
+@_test("PUT status update to rejected works", category="API")
 def t23():
     pin = setup_pin()
     r = requests.put(
@@ -404,7 +404,7 @@ def t23():
     eq(r.json()["status"], "rejected")
 
 
-@test("PUT status update to discussed works", category="API")
+@_test("PUT status update to discussed works", category="API")
 def t24():
     pin = setup_pin()
     r = requests.put(
@@ -415,7 +415,7 @@ def t24():
     eq(r.json()["status"], "discussed")
 
 
-@test("PUT invalid status returns error", category="API")
+@_test("PUT invalid status returns error", category="API")
 def t25():
     pin = setup_pin()
     r = requests.put(
@@ -426,7 +426,7 @@ def t25():
     inside("error", r.json())
 
 
-@test("DELETE pin removes it from whiteboard", category="API")
+@_test("DELETE pin removes it from whiteboard", category="API")
 def t26():
     pin = setup_pin()
     pid = pin["id"]
@@ -439,7 +439,7 @@ def t26():
     eq(r.json().get("pin_id"), pid)
 
 
-@test("GET whiteboard after delete shows pin removed", category="API")
+@_test("GET whiteboard after delete shows pin removed", category="API")
 def t27():
     pin = setup_pin()
     pid = pin["id"]
@@ -451,7 +451,7 @@ def t27():
     check(pid not in wb, f"Pin {pid} still in whiteboard after delete")
 
 
-@test("DELETE non-existent pin returns error", category="API")
+@_test("DELETE non-existent pin returns error", category="API")
 def t28():
     r = requests.delete(
         f"{BASE_URL}/api/sessions/{SESSION_ID}/whiteboard/pins/nonexistent",
@@ -833,13 +833,13 @@ async def _ws_runner():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@test("Pin status is one of valid enum values", category="Data")
+@_test("Pin status is one of valid enum values", category="Data")
 def t30():
     pin = setup_pin("Status Enum")
     inside(pin["status"], ("pending", "approved", "rejected", "discussed"))
 
 
-@test("Pin votes values are valid approve/reject/neutral", category="Data")
+@_test("Pin votes values are valid approve/reject/neutral", category="Data")
 def t31():
     pin = setup_pin("Vote Values")
     pid = pin["id"]
@@ -858,7 +858,7 @@ def t31():
         inside(v, ("approve", "reject", "neutral"))
 
 
-@test("Pin comments have author, text, and timestamp fields", category="Data")
+@_test("Pin comments have author, text, and timestamp fields", category="Data")
 def t32():
     pin = setup_pin("Comment Fields")
     pid = pin["id"]
@@ -874,7 +874,7 @@ def t32():
     check(isinstance(c["timestamp"], (int, float)))
 
 
-@test("Multiple pins can exist simultaneously", category="Data")
+@_test("Multiple pins can exist simultaneously", category="Data")
 def t33():
     cleanup_pins()
     p1 = create_pin(topic="Pin Alpha").json()
@@ -887,7 +887,7 @@ def t33():
     inside(p3["id"], wb)
 
 
-@test("Pin votes from different personas are independent", category="Data")
+@_test("Pin votes from different personas are independent", category="Data")
 def t34():
     pin = setup_pin("Indep Votes")
     pid = pin["id"]
@@ -913,7 +913,7 @@ def t34():
     eq(len(wb[pid]["votes"]), 3)
 
 
-@test("Pin can have multiple comments", category="Data")
+@_test("Pin can have multiple comments", category="Data")
 def t35():
     pin = setup_pin("Multi Comm")
     pid = pin["id"]
@@ -929,14 +929,14 @@ def t35():
     eq(wb[pid]["comments"][2]["text"], "Comment number 2")
 
 
-@test("Pin author string is preserved as set", category="Data")
+@_test("Pin author string is preserved as set", category="Data")
 def t36():
     pin = setup_pin("Author Test")
     custom = create_pin(author="custom_author").json()
     eq(custom["author"], "custom_author")
 
 
-@test("Pin status can be changed multiple times", category="Data")
+@_test("Pin status can be changed multiple times", category="Data")
 def t37():
     pin = setup_pin("Status Cycle")
     pid = pin["id"]
@@ -950,7 +950,7 @@ def t37():
     eq(wb[pid]["status"], "rejected")
 
 
-@test("Whiteboard persists across consecutive API calls", category="Data")
+@_test("Whiteboard persists across consecutive API calls", category="Data")
 def t38():
     cleanup_pins()
     p1 = create_pin(topic="Persist A").json()
@@ -962,7 +962,7 @@ def t38():
     inside(p2["id"], r1)
 
 
-@test("created_at is monotonic across sequentially created pins", category="Data")
+@_test("created_at is monotonic across sequentially created pins", category="Data")
 def t39():
     cleanup_pins()
     t1 = create_pin(topic="Pin 1").json()["created_at"]
@@ -976,7 +976,7 @@ def t39():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@test("HTML contains whiteboard section", category="UI")
+@_test("HTML contains whiteboard section", category="UI")
 def t40():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -984,7 +984,7 @@ def t40():
     inside("whiteboardPins", html)
 
 
-@test("CSS for pin-card exists", category="UI")
+@_test("CSS for pin-card exists", category="UI")
 def t41():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -994,7 +994,7 @@ def t41():
     inside(".pin-comments", html)
 
 
-@test("JS renderWhiteboard function exists", category="UI")
+@_test("JS renderWhiteboard function exists", category="UI")
 def t42():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1002,7 +1002,7 @@ def t42():
     inside("whiteboardData", html)
 
 
-@test("JS castVote function exists", category="UI")
+@_test("JS castVote function exists", category="UI")
 def t43():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1010,7 +1010,7 @@ def t43():
     inside("whiteboard/pins", html)
 
 
-@test("JS addComment function exists", category="UI")
+@_test("JS addComment function exists", category="UI")
 def t44():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1018,7 +1018,7 @@ def t44():
     inside("whiteboard/pins", html)
 
 
-@test("JS showPinIdeaDialog function exists", category="UI")
+@_test("JS showPinIdeaDialog function exists", category="UI")
 def t45():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1026,7 +1026,7 @@ def t45():
     inside("pin_idea", html)
 
 
-@test("Whiteboard summary shows pin counts in JS", category="UI")
+@_test("Whiteboard summary shows pin counts in JS", category="UI")
 def t46():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1034,7 +1034,7 @@ def t46():
     inside("pins.length", html)
 
 
-@test("HTML has '+ Pin Idea' button and comment placeholder", category="UI")
+@_test("HTML has '+ Pin Idea' button and comment placeholder", category="UI")
 def t47():
     with open(WEB_HTML, encoding="utf-8") as f:
         html = f.read()
@@ -1047,7 +1047,7 @@ def t47():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@test("All 6 persona system prompts contain WHITEBOARD section", category="Persona")
+@_test("All 6 persona system prompts contain WHITEBOARD section", category="Persona")
 def t48():
     data = requests.get(f"{BASE_URL}/api/personas", timeout=10).json()
     eq(len(data), 6)
@@ -1055,21 +1055,21 @@ def t48():
         inside("WHITEBOARD", p["system_prompt"], f"{p['id']} missing WHITEBOARD")
 
 
-@test("System prompts mention pin_idea", category="Persona")
+@_test("System prompts mention pin_idea", category="Persona")
 def t49():
     data = requests.get(f"{BASE_URL}/api/personas", timeout=10).json()
     for p in data:
         inside("pin_idea", p["system_prompt"], f"{p['id']} missing pin_idea")
 
 
-@test("System prompts mention voting", category="Persona")
+@_test("System prompts mention voting", category="Persona")
 def t50():
     data = requests.get(f"{BASE_URL}/api/personas", timeout=10).json()
     for p in data:
         inside("vote", p["system_prompt"].lower(), f"{p['id']} missing vote")
 
 
-@test("All personas have identical whiteboard instruction text", category="Persona")
+@_test("All personas have identical whiteboard instruction text", category="Persona")
 def t51():
     data = requests.get(f"{BASE_URL}/api/personas", timeout=10).json()
     texts = [p["system_prompt"].split("WHITEBOARD:")[-1].strip() for p in data]
@@ -1078,7 +1078,7 @@ def t51():
         eq(t, first, "Whiteboard instructions differ between personas")
 
 
-@test(
+@_test(
     "Whiteboard summary rendered in deliverable on session_complete", category="Persona"
 )
 def t52():
@@ -1088,7 +1088,7 @@ def t52():
     inside("renderWhiteboard(data.whiteboard)", html)
 
 
-@test("Workflow has whiteboard phase with speaker instructions", category="Persona")
+@_test("Workflow has whiteboard phase with speaker instructions", category="Persona")
 def t53():
     wf = requests.get(f"{BASE_URL}/api/workflows", timeout=10).json()
     living = wf["living_lab"]
@@ -1098,7 +1098,7 @@ def t53():
     inside("rook", wb_phase["speaker_instructions"])
 
 
-@test("All workflow modes mention whiteboard in phase descriptions", category="Persona")
+@_test("All workflow modes mention whiteboard in phase descriptions", category="Persona")
 def t54():
     wf = requests.get(f"{BASE_URL}/api/workflows", timeout=10).json()
     found = any(
@@ -1114,7 +1114,7 @@ def t54():
 # ═══════════════════════════════════════════════════════════════════════════
 
 
-@test("GET whiteboard on non-existent session returns error", category="Edge")
+@_test("GET whiteboard on non-existent session returns error", category="Edge")
 def t55():
     r = requests.get(
         f"{BASE_URL}/api/sessions/does_not_exist_12345/whiteboard", timeout=10
@@ -1122,7 +1122,7 @@ def t55():
     inside("error", r.json())
 
 
-@test("Concurrent votes from same persona overwrite (last wins)", category="Edge")
+@_test("Concurrent votes from same persona overwrite (last wins)", category="Edge")
 def t56():
     pin = setup_pin("Overwrite")
     pid = pin["id"]
@@ -1141,7 +1141,7 @@ def t56():
     eq(len(wb[pid]["votes"]), 1, "Overwritten vote should keep single entry")
 
 
-@test("Special characters in topic/content are preserved", category="Edge")
+@_test("Special characters in topic/content are preserved", category="Edge")
 def t57():
     cleanup_pins()
     special_topic = "Pin #1: <test> & \"quotes\" + 'single'"
@@ -1151,7 +1151,7 @@ def t57():
     eq(pin["content"], special_content)
 
 
-@test("Long content (>1000 chars) is accepted", category="Edge")
+@_test("Long content (>1000 chars) is accepted", category="Edge")
 def t58():
     cleanup_pins()
     long_content = "LongContent_" * 200
@@ -1160,7 +1160,7 @@ def t58():
     check(pin["content"].startswith("LongContent_"))
 
 
-@test("Full lifecycle: create -> vote -> comment -> status -> delete", category="Edge")
+@_test("Full lifecycle: create -> vote -> comment -> status -> delete", category="Edge")
 def t59():
     pin = setup_pin("Lifecycle")
     pid = pin["id"]
@@ -1193,7 +1193,7 @@ def t59():
     check(pid not in wb2)
 
 
-@test("Empty string topic creates pin without error", category="Edge")
+@_test("Empty string topic creates pin without error", category="Edge")
 def t60():
     cleanup_pins()
     r = requests.post(
@@ -1206,7 +1206,7 @@ def t60():
     eq(pin["topic"], "")
 
 
-@test("PUT vote on deleted pin returns error", category="Edge")
+@_test("PUT vote on deleted pin returns error", category="Edge")
 def t61():
     pin = setup_pin("Del Vote")
     pid = pin["id"]
@@ -1222,7 +1222,7 @@ def t61():
     inside("error", r.json())
 
 
-@test("PUT comment on deleted pin returns error", category="Edge")
+@_test("PUT comment on deleted pin returns error", category="Edge")
 def t62():
     pin = setup_pin("Del Comm")
     pid = pin["id"]

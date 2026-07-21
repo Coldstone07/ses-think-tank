@@ -122,8 +122,7 @@ from plugins import (
     PERSONA_REQUIRED, PERSONA_OPTIONAL,
     tool_store, validate_tool, tool_to_openai_schema,
     execute_tool_plugin,
-    execute_tool_call, resolve_tools,
-    knowledge_store, load_knowledge, augment_system_prompt_with_knowledge,
+    load_knowledge,
     add_memory, extract_memories_from_conversation,
     list_personas_with_knowledge,
 )
@@ -133,8 +132,8 @@ _plugin_summary = plugin_store.load_all(str(BASE_DIR))
 print(f"[plugins] Loaded {_plugin_summary}")
 
 # Phase 4.3: Initialize tool store
-_tool_init = tool_store.load_from_dir(str(BASE_DIR / "plugins" / "tools"))
-print(f"[tools] Loaded {_tool_init['count']} tool plugins")
+_tool_init = tool_store.load_all(tools_dir=str(BASE_DIR / "plugins" / "tools"))
+print(f"[tools] Loaded {_tool_init.get('loaded', _tool_init.get('count', 0))} tool plugins")
 
 # Phase 4.4: Session Intelligence
 from session_intelligence import (

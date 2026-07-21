@@ -137,14 +137,14 @@ function addMessage(msg) {
   document.getElementById('statTurns').textContent = turnCount;
   document.getElementById('statSpeakers').textContent = speakers.size;
   const isRight = ['rook','maya'].includes(msg.persona_id);
-  const toolBadges = (msg.tool_uses||[]).map(t => `<span class="tool-badge" title="${t.error||t.result||''}">🔧 ${t.tool}</span>`).join('');
+  const toolBadges = (msg.tool_uses||[]).map(t => `<span class="tool-badge ${t.error?'error':''}" title="${t.error||t.result||''}">🔧 ${t.tool}</span>`).join('');
   const div = document.createElement('div');
-  div.className = `message ${isRight?'right':'left'}`;
-  div.innerHTML = `<div class="msg-avatar" style="background:${msg.color}22;border-color:${msg.color}44;">${msg.icon}</div><div><div class="msg-bubble">${renderMarkdown(msg.content)}</div>${toolBadges?`<div class="msg-tools">${toolBadges}</div>`:''}<div class="msg-meta"><span style="color:${msg.color};font-weight:600;">${msg.persona_name}</span>${msg.phase?`<span class="msg-phase-tag">${msg.phase}</span>`:''}<span>${timeAgo(msg.timestamp*1000)}</span></div></div>`;
+  div.className = `message ${msg.persona_id||''} ${isRight?'right':'left'}`;
+  const content = renderMarkdown(msg.content);
+  div.innerHTML = `<div class="msg-avatar" style="background:${msg.color}22;border-color:${msg.color}44;">${msg.icon}</div><div><div class="msg-bubble">${content}</div>${toolBadges?`<div class="msg-tools">${toolBadges}</div>`:''}<div class="msg-meta"><span style="color:${msg.color};font-weight:600;">${msg.persona_name}</span>${msg.phase?`<span class="msg-phase-tag">${msg.phase}</span>`:''}<span>${timeAgo(msg.timestamp*1000)}</span><button class="msg-action-btn" onclick="copyMessage(this.closest('.message').querySelector('.msg-bubble').textContent)">📋 Copy</button></div></div>`;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
-
 function addToolUseIndicator(data) {
   const toast = document.createElement('div');
   toast.className = 'tool-toast';
@@ -201,6 +201,8 @@ function finishConversation(data) {
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
   document.querySelectorAll('.phase-step').forEach(s => { s.classList.remove('active'); s.classList.add('done'); });
+  // Show export buttons
+  document.getElementById('exportRow').style.display = 'flex';
   if (data.whiteboard) {
     renderWhiteboard(data.whiteboard);
     const pins = Object.values(data.whiteboard);
@@ -526,12 +528,42 @@ document.addEventListener('keydown', e => {
   if((e.metaKey||e.ctrlKey) && e.key === ',') { e.preventDefault(); toggleSettings(); }
   // Cmd/Ctrl + K to focus topic input
   if((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('topicInput').focus(); }
+  // Cmd/Ctrl + T to toggle theme
+  if((e.metaKey||e.ctrlKey) && e.key === 't') { e.preventDefault(); toggleTheme(); }
   // Escape to close modals
   if(e.key === 'Escape') {
     document.getElementById('settingsModal').classList.remove('visible');
     document.getElementById('teamAnalysisPanel').style.display = 'none';
+    closeMobilePanels();
   }
 });
+
+// ─── THEME TOGGLE ───
+function toggleTheme() {
+  document.body.classList.toggle('light');
+  const isLight = document.body.classList.contains('light');
+  document.querySelector('.theme-toggle').textContent = isLight ? '☀️' : '🌙';
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  showToast(isLight ? 'Light theme' : 'Dark theme', '');
+}
+// Restore saved theme
+if(localStorage.getItem('theme') === 'light') {
+  document.body.classList.add('light');
+  document.querySelector('.theme-toggle') && (document.querySelector('.theme-toggle').textContent = '☀️');
+}
+
+// ─── MOBILE PANELS ───
+function toggleMobilePanel(side) {
+  const panel = document.querySelector(side === 'left' ? '.left-panel' : '.right-panel');
+  const overlay = document.getElementById('mobileOverlay');
+  panel.classList.toggle('mobile-open');
+  overlay.classList.toggle('active');
+}
+function closeMobilePanels() {
+  document.querySelector('.left-panel')?.classList.remove('mobile-open');
+  document.querySelector('.right-panel')?.classList.remove('mobile-open');
+  document.getElementById('mobileOverlay')?.classList.remove('active');
+}
 
 // ─── TYPING INDICATOR ───
 let typingTimeout = null;

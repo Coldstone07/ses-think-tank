@@ -480,6 +480,97 @@
     color: var(--text-dim); cursor: pointer; transition: all 0.15s;
   }
   .quick-start-item:hover { border-color: var(--accent); color: var(--text); background: var(--surface3); }
+
+  /* Theme toggle */
+  .theme-toggle {
+    width: 32px; height: 32px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .theme-toggle:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Light theme */
+  body.light {
+    --bg: #fafafa; --surface: #ffffff; --surface2: #f3f4f6; --surface3: #e5e7eb;
+    --border: #e0e0e8; --border-light: #d0d0da;
+    --text: #1a1a2e; --text-dim: #555568; --text-muted: #8888a0;
+  }
+  body.light .header { background: var(--surface); }
+  body.light .left-panel { background: var(--surface); }
+  body.light .right-panel { background: var(--surface); }
+  body.light .phase-bar { background: var(--surface); }
+  body.light .right-tabs { background: var(--surface); }
+  body.light .msg-bubble { box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  body.light .modal { box-shadow: 0 20px 60px rgba(0,0,0,0.12); }
+  body.light ::-webkit-scrollbar-thumb { background: var(--border-light); }
+
+  /* Responsive */
+  @media (max-width: 1024px) {
+    body { grid-template-columns: 220px 1fr 280px; }
+  }
+  @media (max-width: 768px) {
+    body {
+      grid-template-columns: 1fr;
+      grid-template-rows: 52px 1fr;
+    }
+    .left-panel, .right-panel { display: none; }
+    .left-panel.mobile-open, .right-panel.mobile-open {
+      display: flex; position: fixed; top: 52px; bottom: 0;
+      width: 280px; z-index: 100; overflow-y: auto;
+    }
+    .left-panel.mobile-open { left: 0; }
+    .right-panel.mobile-open { right: 0; }
+    .mobile-menu-btn { display: flex !important; }
+    .welcome-features { flex-direction: column; align-items: center; }
+    .welcome-feature { max-width: 260px; width: 100%; }
+    .quick-start { flex-direction: column; align-items: center; }
+  }
+  .mobile-menu-btn {
+    display: none; width: 32px; height: 32px; border-radius: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; font-size: 14px;
+    align-items: center; justify-content: center;
+  }
+  .mobile-overlay {
+    display: none; position: fixed; top: 52px; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 99;
+  }
+  .mobile-overlay.active { display: block; }
+
+  /* Smooth scroll */
+  .chat-area { scroll-behavior: smooth; }
+
+  /* Persona color-coded bubbles */
+  .message.rook .msg-bubble { border-left: 3px solid var(--rook); }
+  .message.elena .msg-bubble { border-left: 3px solid var(--elena); }
+  .message.kael .msg-bubble { border-left: 3px solid var(--kael); }
+  .message.maya .msg-bubble { border-left: 3px solid var(--maya); }
+  .message.jax .msg-bubble { border-left: 3px solid var(--jax); }
+  .message.sage .msg-bubble { border-left: 3px solid var(--sage); }
+  .message.nova .msg-bubble { border-left: 3px solid #8b5cf6; }
+
+  /* Message hover actions */
+  .msg-actions {
+    display: none; gap: 4px; margin-top: 4px;
+  }
+  .message:hover .msg-actions { display: flex; }
+  .msg-action-btn {
+    padding: 2px 8px; border-radius: 4px; font-size: 9px;
+    background: var(--surface3); border: 1px solid var(--border);
+    color: var(--text-muted); cursor: pointer; transition: all 0.15s;
+  }
+  .msg-action-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Unread count badge */
+  .unread-badge {
+    position: absolute; top: -4px; right: -4px;
+    min-width: 16px; height: 16px; border-radius: 8px;
+    background: var(--red); color: white; font-size: 9px;
+    font-weight: 700; display: flex; align-items: center;
+    justify-content: center; padding: 0 4px;
+  }
 </style>
 </head>
 <body>
@@ -499,11 +590,14 @@
   <button class="btn-secondary" id="analyzeBtn" onclick="analyzeTeam()">🔍 Analyze</button>
   <button class="btn-primary" id="startBtn" onclick="startConversation()">Start</button>
   <div class="header-actions">
+    <button class="mobile-menu-btn" onclick="toggleMobilePanel('left')" title="Menu">☰</button>
     <div class="connection-status" id="connectionStatus">
       <div class="connection-dot connecting" id="connectionDot"></div>
       <span id="connectionText">Connecting</span>
     </div>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme (⌘+T)">🌙</button>
     <button class="icon-btn" onclick="toggleSettings()" title="Settings (⌘,)">⚙️</button>
+    <button class="mobile-menu-btn" onclick="toggleMobilePanel('right')" title="Panels">☰</button>
   </div>
 </div>
 
@@ -574,6 +668,7 @@
 </div>
 
 <!-- CENTER PANEL -->
+<div class="mobile-overlay" id="mobileOverlay" onclick="closeMobilePanels()"></div>
 <div class="center-panel">
   <div class="phase-bar" id="phaseBar" style="display:none;"></div>
   <div class="chat-area" id="chatArea">

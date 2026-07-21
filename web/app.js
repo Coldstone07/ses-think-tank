@@ -65,11 +65,24 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const dot = document.getElementById('connectionDot');
+  const text = document.getElementById('connectionText');
+  dot.className = 'connection-dot connecting';
+  text.textContent = 'Connecting';
   ws = new WebSocket(`${proto}://${location.host}/ws/${Date.now()}`);
-  ws.onopen = () => console.log('Connected');
-  ws.onclose = () => setTimeout(connectWS, 3000);
+  ws.onopen = () => {
+    console.log('Connected');
+    dot.className = 'connection-dot';
+    text.textContent = 'Connected';
+  };
+  ws.onclose = () => {
+    dot.className = 'connection-dot disconnected';
+    text.textContent = 'Reconnecting...';
+    setTimeout(connectWS, 3000);
+  };
   ws.onerror = (e) => console.error('WS error:', e);
   ws.onmessage = (event) => {
+    hideTyping();
     const data = JSON.parse(event.data);
     switch (data.type) {
       case 'message': addMessage(data.message); break;
@@ -87,6 +100,7 @@ function connectWS() {
       case 'memory_suggestion': showMemorySuggestion(data); break;
       case 'intervention': addHitlHistoryItem(data); break;
       case 'tool_use': addToolUseIndicator(data); break;
+      case 'typing': showTyping(data.persona_name); break;
     }
   };
 }
@@ -503,6 +517,123 @@ connectWS();
 (async function loadMemoryCount() {
   try { const resp = await fetch('/api/memory/sessions?topic='); const sessions = await resp.json(); updateMemoryCount(sessions.length); } catch(e) {}
 })();
+
+// ─── KEYBOARD SHORTCUTS ───
+document.addEventListener('keydown', e => {
+  // Cmd/Ctrl + Enter to start conversation
+  if((e.metaKey||e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); startConversation(); }
+  // Cmd/Ctrl + , for settings
+  if((e.metaKey||e.ctrlKey) && e.key === ',') { e.preventDefault(); toggleSettings(); }
+  // Cmd/Ctrl + K to focus topic input
+  if((e.metaKey||e.ctrlKey) && e.key === 'k') { e.preventDefault(); document.getElementById('topicInput').focus(); }
+  // Escape to close modals
+  if(e.key === 'Escape') {
+    document.getElementById('settingsModal').classList.remove('visible');
+    document.getElementById('teamAnalysisPanel').style.display = 'none';
+  }
+});
+
+// ─── TYPING INDICATOR ───
+let typingTimeout = null;
+function showTyping(personaName) {
+  const indicator = document.getElementById('typingIndicator');
+  const text = document.getElementById('typingText');
+  text.textContent = personaName ? `${personaName} is thinking...` : 'Thinking...';
+  indicator.classList.add('visible');
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(hideTyping, 10000);
+}
+function hideTyping() {
+  document.getElementById('typingIndicator').classList.remove('visible');
+  clearTimeout(typingTimeout);
+}
+
+// ─── TOAST NOTIFICATIONS ───
+function showToast(message, type = '') {
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span> ${message}`;
+  document.body.appendChild(toast);
+  setTimeout(() => { toast.style.animation = 'toastOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
+}
+
+// ─── EXPORT FUNCTIONS ───
+function exportMarkdown() {
+  const messages = document.querySelectorAll('.message');
+  let md = '';
+  messages.forEach(msg => {
+    const name = msg.querySelector('.msg-meta span:first-child')?.textContent || 'Unknown';
+    const content = msg.querySelector('.msg-bubble')?.textContent || '';
+    md += `### ${name}\n\n${content}\n\n---\n\n`;
+  });
+  downloadFile(`think-tank-${Date.now()}.md`, md);
+  showToast('Exported as Markdown', 'success');
+}
+
+function exportJSON() {
+  const messages = [];
+  document.querySelectorAll('.message').forEach(msg => {
+    const name = msg.querySelector('.msg-meta span:first-child')?.textContent || 'Unknown';
+    const content = msg.querySelector('.msg-bubble')?.textContent || '';
+    messages.push({speaker: name, content});
+  });
+  downloadFile(`think-tank-${Date.now()}.json`, JSON.stringify({topic: document.getElementById('topicDisplay').textContent, messages, exported_at: new Date().toISOString()}, null, 2));
+  showToast('Exported as JSON', 'success');
+}
+
+function copyDeliverable() {
+  const content = document.querySelector('.deliverable-content')?.textContent;
+  if(content) {
+    navigator.clipboard.writeText(content).then(() => showToast('Copied to clipboard', 'success'));
+  }
+}
+
+function downloadFile(filename, content) {
+  const blob = new Blob([content], {type: 'text/plain'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── COPY MESSAGE ───
+function copyMessage(text) {
+  navigator.clipboard.writeText(text).then(() => showToast('Copied', 'success'));
+}
+
+// ─── SESSION HISTORY ───
+let sessionHistory = [];
+async function loadSessionHistory() {
+  try {
+    const resp = await fetch('/api/sessions');
+    const sessions = await resp.json();
+    sessionHistory = sessions.slice(0, 10);
+    renderSessionHistory();
+  } catch(e) {}
+}
+function renderSessionHistory() {
+  const container = document.getElementById('sessionHistoryList');
+  if(!container) return;
+  if(!sessionHistory.length) { container.innerHTML = '<div class="empty-state">No sessions yet.</div>'; return; }
+  container.innerHTML = sessionHistory.map(s => {
+    const isActive = currentSession === s.session_id;
+    const date = s.started_at ? new Date(s.started_at * 1000).toLocaleDateString() : '';
+    return `<div class="session-item ${isActive?'active':''}" onclick="loadSession('${s.session_id}')"><div class="session-topic">${s.topic||'Untitled'}</div><div class="session-meta">${date} · ${s.turn_count||0} turns</div></div>`;
+  }).join('');
+}
+async function loadSession(sessionId) {
+  try {
+    const resp = await fetch(`/api/sessions/${sessionId}/messages`);
+    const messages = await resp.json();
+    document.getElementById('chatArea').innerHTML = '';
+    messages.forEach(msg => addMessage(msg));
+    currentSession = sessionId;
+    renderSessionHistory();
+  } catch(e) { showToast('Failed to load session', 'error'); }
+}
+
+// Load session history on boot
+loadSessionHistory();
 
 // ─── TOOL PLUGINS ───
 function loadTools() {

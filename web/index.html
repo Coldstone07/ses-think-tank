@@ -371,6 +371,115 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+  /* Connection status */
+  .connection-status {
+    display: flex; align-items: center; gap: 5px;
+    font-size: 10px; color: var(--text-muted);
+  }
+  .connection-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); transition: background 0.3s;
+  }
+  .connection-dot.disconnected { background: var(--red); }
+  .connection-dot.connecting { background: var(--amber); animation: pulseDot 1s infinite; }
+  @keyframes pulseDot { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+  /* Typing indicator */
+  .typing-indicator {
+    display: none; align-self: flex-start; padding: 12px 16px;
+    background: var(--surface2); border-radius: 14px;
+    border: 1px solid var(--border); margin-left: 44px;
+  }
+  .typing-indicator.visible { display: flex; }
+  .typing-dots { display: flex; gap: 4px; }
+  .typing-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--text-muted); animation: typingBounce 1.4s infinite;
+  }
+  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes typingBounce {
+    0%,60%,100%{transform:translateY(0);opacity:0.4}
+    30%{transform:translateY(-6px);opacity:1}
+  }
+  .typing-text { font-size: 11px; color: var(--text-muted); margin-left: 8px; }
+
+  /* Export buttons */
+  .export-row { display: flex; gap: 4px; margin-top: 8px; }
+  .export-btn {
+    flex: 1; padding: 5px 8px; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); background: var(--surface2);
+    color: var(--text-dim); font-size: 10px; cursor: pointer;
+    transition: all 0.15s; display: flex; align-items: center;
+    justify-content: center; gap: 4px;
+  }
+  .export-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Copy button on messages */
+  .copy-btn {
+    opacity: 0; padding: 2px 6px; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--surface2); color: var(--text-muted);
+    font-size: 9px; cursor: pointer; transition: all 0.15s;
+  }
+  .msg-meta:hover .copy-btn { opacity: 1; }
+  .copy-btn:hover { border-color: var(--accent); color: var(--text); }
+
+  /* Session history */
+  .session-history { padding: 10px 14px; border-top: 1px solid var(--border); }
+  .session-item {
+    padding: 8px 10px; border-radius: var(--radius-sm);
+    cursor: pointer; transition: all 0.15s; margin-bottom: 3px;
+  }
+  .session-item:hover { background: var(--surface2); }
+  .session-item.active { background: rgba(99,102,241,0.08); border: 1px solid var(--accent); }
+  .session-topic { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-meta { font-size: 9px; color: var(--text-muted); margin-top: 2px; }
+
+  /* Keyboard shortcut hints */
+  .kbd-hint {
+    display: inline-flex; align-items: center; gap: 3px;
+    font-size: 9px; color: var(--text-muted); margin-left: 4px;
+  }
+  .kbd {
+    padding: 1px 4px; border-radius: 3px;
+    background: var(--surface3); border: 1px solid var(--border);
+    font-size: 8px; font-weight: 600; color: var(--text-dim);
+  }
+
+  /* Toast notifications */
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    padding: 10px 20px; border-radius: 10px; font-size: 12px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    animation: toastIn 0.3s ease; z-index: 1000;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .toast.success { border-color: var(--green); }
+  .toast.error { border-color: var(--red); }
+  @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+  @keyframes toastOut { from { opacity:1; } to { opacity:0; transform:translateX(-50%) translateY(10px); } }
+
+  /* Welcome screen improvements */
+  .welcome-features { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; justify-content: center; }
+  .welcome-feature {
+    padding: 10px 14px; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); font-size: 11px; color: var(--text-dim);
+    max-width: 160px; text-align: left; transition: all 0.15s;
+  }
+  .welcome-feature:hover { border-color: var(--accent); background: var(--surface3); }
+  .welcome-feature-icon { font-size: 18px; margin-bottom: 4px; }
+  .welcome-feature-title { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+
+  /* Quick start suggestions */
+  .quick-start { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 16px; justify-content: center; }
+  .quick-start-item {
+    padding: 6px 12px; border-radius: 20px; font-size: 11px;
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text-dim); cursor: pointer; transition: all 0.15s;
+  }
+  .quick-start-item:hover { border-color: var(--accent); color: var(--text); background: var(--surface3); }
 </style>
 </head>
 <body>
@@ -390,7 +499,11 @@
   <button class="btn-secondary" id="analyzeBtn" onclick="analyzeTeam()">🔍 Analyze</button>
   <button class="btn-primary" id="startBtn" onclick="startConversation()">Start</button>
   <div class="header-actions">
-    <button class="icon-btn" onclick="toggleSettings()" title="Settings">⚙️</button>
+    <div class="connection-status" id="connectionStatus">
+      <div class="connection-dot connecting" id="connectionDot"></div>
+      <span id="connectionText">Connecting</span>
+    </div>
+    <button class="icon-btn" onclick="toggleSettings()" title="Settings (⌘,)">⚙️</button>
   </div>
 </div>
 
@@ -454,18 +567,59 @@
     <div class="phase-desc" id="phaseDesc"></div>
     <div class="phase-speakers" id="phaseSpeakers"></div>
   </div>
+  <div class="session-history" id="sessionHistorySection">
+    <div class="panel-title">Recent Sessions</div>
+    <div id="sessionHistoryList"><div class="empty-state">No sessions yet.</div></div>
+  </div>
 </div>
 
 <!-- CENTER PANEL -->
 <div class="center-panel">
   <div class="phase-bar" id="phaseBar" style="display:none;"></div>
   <div class="chat-area" id="chatArea">
-    <div class="welcome-screen">
+    <div class="welcome-screen" id="welcomeScreen">
       <div class="welcome-icon">🧠</div>
       <div class="welcome-title">Think Tank Ready</div>
       <div class="welcome-sub">Select personas, pick a mode, and start a conversation.</div>
+      <div class="welcome-features">
+        <div class="welcome-feature">
+          <div class="welcome-feature-icon">🎭</div>
+          <div class="welcome-feature-title">7 Personas</div>
+          Unique AI minds that debate & collaborate
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-feature-icon">🔧</div>
+          <div class="welcome-feature-title">Tool Plugins</div>
+          Web search, file ops, and more
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-feature-icon">📊</div>
+          <div class="welcome-feature-title">Live Analytics</div>
+          Synergy metrics & quality tracking
+        </div>
+        <div class="welcome-feature">
+          <div class="welcome-feature-icon">📌</div>
+          <div class="welcome-feature-title">Whiteboard</div>
+          Pin ideas, vote, and collaborate
+        </div>
+      </div>
+      <div class="quick-start">
+        <div class="quick-start-item" onclick="setTopic('AI alignment and safety tradeoffs')">AI alignment</div>
+        <div class="quick-start-item" onclick="setTopic('Designing a mental health chatbot')">Mental health AI</div>
+        <div class="quick-start-item" onclick="setTopic('Future of remote work and AI assistants')">Remote work future</div>
+        <div class="quick-start-item" onclick="setTopic('Ethical implications of autonomous weapons')">Autonomous weapons</div>
+        <div class="quick-start-item" onclick="setTopic('Building a decentralized social network')">Decentralized social</div>
+      </div>
     </div>
-  </div>
+    </div>
+    <div class="typing-indicator" id="typingIndicator">
+    <div class="typing-dots">
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+      <div class="typing-dot"></div>
+    </div>
+    <div class="typing-text" id="typingText">Thinking...</div>
+    </div>
 </div>
 
 <!-- RIGHT PANEL -->
@@ -549,13 +703,18 @@
         </div>
         <div id="whiteboardPins"></div>
       </div>
-      <div class="deliverable-section">
+      <div class="deliverable-section" id="deliverableSection">
         <div class="panel-title">Deliverable</div>
         <div id="deliverableArea">
           <div class="deliverable-placeholder">
-            <div style="font-size:24px;margin-bottom:6px;">📋</div>
+            <div style="font-size:24px;margin-bottom:6px;">📄</div>
             Final output appears here when the conversation completes.
           </div>
+        </div>
+        <div class="export-row" id="exportRow" style="display:none;">
+          <button class="export-btn" onclick="exportMarkdown()">📝 Markdown</button>
+          <button class="export-btn" onclick="exportJSON()">📋 JSON</button>
+          <button class="export-btn" onclick="copyDeliverable()">📋 Copy</button>
         </div>
       </div>
     </div>

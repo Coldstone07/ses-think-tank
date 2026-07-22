@@ -1171,12 +1171,12 @@ def call_llm_with_tools(
             if content:
                 # Strip any TOOL_CALL: lines from the output
                 clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", content).strip()
-                return {"content": clean or content, "tool_uses": tool_uses}
+                return {"content": clean or content, "reasoning": reasoning, "tool_uses": tool_uses}
             if reasoning:
                 clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", reasoning).strip()
                 extracted = extract_from_reasoning(reasoning)
-                return {"content": extracted or clean, "tool_uses": tool_uses}
-            return {"content": "", "tool_uses": tool_uses}
+                return {"content": extracted or clean, "reasoning": reasoning, "tool_uses": tool_uses}
+            return {"content": "", "reasoning": reasoning, "tool_uses": tool_uses}
 
         # Execute tool calls
         if native_tool_calls:
@@ -1245,7 +1245,7 @@ def call_llm_with_tools(
 
     # Exhausted rounds — return best content
     clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", content).strip()
-    return {"content": clean or content or extract_from_reasoning(reasoning), "tool_uses": tool_uses}
+    return {"content": clean or content or extract_from_reasoning(reasoning), "reasoning": reasoning, "tool_uses": tool_uses}
 
 
 def extract_json_from_text(text: str) -> Optional[dict]:
@@ -1614,6 +1614,7 @@ class Message:
     timestamp: float
     phase: str = ""
     is_thinking: bool = False
+    reasoning: str = ""  # Private chain-of-thought (hidden from other personas)
     tool_uses: List[Dict] = field(default_factory=list)
 
 
@@ -2603,9 +2604,9 @@ async def run_salon(
 
 You are starting this conversation. Set the stage, share your initial thoughts, and invite others to engage. Be genuine and specific. Keep your response to 2-4 paragraphs."""
 
-    response = await asyncio.get_event_loop().run_in_executor(
+    raw_response = await asyncio.get_event_loop().run_in_executor(
         None,
-        call_llm,
+        call_llm_raw,
         [
             {"role": "system", "content": opener["system_prompt"]},
             {"role": "user", "content": opening_prompt},
@@ -2614,6 +2615,8 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
         0.9,
         1024,
     )
+    opening_content = raw_response.get("content", "") or extract_from_reasoning(raw_response.get("reasoning_content", ""))
+    opening_reasoning = raw_response.get("reasoning_content", "")
 
     msg = Message(
         id=str(uuid.uuid4())[:8],
@@ -2621,7 +2624,8 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
         persona_name=opener["name"],
         icon=opener["icon"],
         color=opener["color"],
-        content=response,
+        content=opening_content,
+        reasoning=opening_reasoning,
         timestamp=time.time(),
     )
     session.messages.append(msg)
@@ -2672,9 +2676,9 @@ Here's what's been discussed:
 
 Now it's your turn. Engage with what others have said. Be specific and genuine. 2-4 paragraphs."""
 
-        response = await asyncio.get_event_loop().run_in_executor(
+        raw_response = await asyncio.get_event_loop().run_in_executor(
             None,
-            call_llm,
+            call_llm_raw,
             [
                 {"role": "system", "content": next_persona["system_prompt"]},
                 {"role": "user", "content": response_prompt},
@@ -2683,6 +2687,8 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
             0.85,
             1024,
         )
+        response_content = raw_response.get("content", "") or extract_from_reasoning(raw_response.get("reasoning_content", ""))
+        response_reasoning = raw_response.get("reasoning_content", "")
 
         msg = Message(
             id=str(uuid.uuid4())[:8],
@@ -2690,7 +2696,8 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
             persona_name=next_persona["name"],
             icon=next_persona["icon"],
             color=next_persona["color"],
-            content=response,
+            content=response_content,
+            reasoning=response_reasoning,
             timestamp=time.time(),
         )
         session.messages.append(msg)
@@ -2878,6 +2885,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
             )
 
             response = result.get("content", "")
+            reasoning = result.get("reasoning", "")
             tool_uses = result.get("tool_uses", [])
 
             msg = Message(
@@ -2887,6 +2895,7 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
                 icon=speaker["icon"],
                 color=speaker["color"],
                 content=response,
+                reasoning=reasoning,
                 timestamp=time.time(),
                 phase=phase_id,
                 tool_uses=tool_uses,

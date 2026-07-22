@@ -141,7 +141,14 @@ function addMessage(msg) {
   const div = document.createElement('div');
   div.className = `message ${msg.persona_id||''} ${isRight?'right':'left'}`;
   const content = renderMarkdown(msg.content);
-  div.innerHTML = `<div class="msg-avatar" style="background:${msg.color}22;border-color:${msg.color}44;">${msg.icon}</div><div><div class="msg-bubble">${content}</div>${toolBadges?`<div class="msg-tools">${toolBadges}</div>`:''}<div class="msg-meta"><span style="color:${msg.color};font-weight:600;">${msg.persona_name}</span>${msg.phase?`<span class="msg-phase-tag">${msg.phase}</span>`:''}<span>${timeAgo(msg.timestamp*1000)}</span><button class="msg-action-btn" onclick="copyMessage(this.closest('.message').querySelector('.msg-bubble').textContent)">📋 Copy</button></div></div>`;
+
+  // Thinking block (collapsed by default)
+  let thinkingHtml = '';
+  if (msg.reasoning && msg.reasoning.trim()) {
+    thinkingHtml = `<details class="msg-thinking"><summary class="thinking-toggle">💭 Thinking</summary><div class="thinking-content">${renderMarkdown(msg.reasoning)}</div></details>`;
+  }
+
+  div.innerHTML = `<div class="msg-avatar" style="background:${msg.color}22;border-color:${msg.color}44;">${msg.icon}</div><div><div class="msg-bubble">${content}</div>${thinkingHtml}${toolBadges?`<div class="msg-tools">${toolBadges}</div>`:''}<div class="msg-meta"><span style="color:${msg.color};font-weight:600;">${msg.persona_name}</span>${msg.phase?`<span class="msg-phase-tag">${msg.phase}</span>`:''}<span>${timeAgo(msg.timestamp*1000)}</span><button class="msg-action-btn" onclick="copyMessage(this.closest('.message').querySelector('.msg-bubble').textContent)">📋 Copy</button></div></div>`;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }

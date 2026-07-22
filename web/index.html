@@ -130,6 +130,27 @@
     word-wrap: break-word; overflow-wrap: break-word;
   }
   .message.right .msg-bubble { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.2); }
+
+  /* Thinking blocks (collapsed by default) */
+  .msg-thinking { margin: 6px 0 0; }
+  .thinking-toggle {
+    font-size: 11px; color: var(--text-muted); cursor: pointer;
+    padding: 3px 8px; border-radius: 6px; background: var(--surface3);
+    border: 1px solid var(--border); transition: all 0.15s; user-select: none;
+  }
+  .thinking-toggle:hover { background: var(--surface2); color: var(--text-dim); }
+  .msg-thinking[open] .thinking-toggle { color: var(--accent); border-color: var(--accent); background: rgba(99,102,241,0.1); }
+  .thinking-content {
+    margin-top: 6px; padding: 8px 12px; border-radius: 8px;
+    background: var(--bg); border: 1px solid var(--border);
+    font-size: 12px; line-height: 1.5; color: var(--text-dim);
+    max-height: 300px; overflow-y: auto;
+  }
+  .thinking-content p { margin: 0 0 6px; }
+  .thinking-content p:last-child { margin-bottom: 0; }
+  .thinking-content code { background: var(--surface3); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+  .thinking-content pre { background: var(--surface2); padding: 6px 10px; border-radius: 6px; overflow-x: auto; font-size: 11px; margin: 6px 0; }
+
   .msg-meta { font-size: 10px; color: var(--text-muted); margin-top: 5px; display: flex; gap: 8px; align-items: center; }
   .msg-phase-tag { padding: 1px 6px; border-radius: 4px; font-size: 9px; background: var(--accent); color: white; font-weight: 600; }
   .msg-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }

@@ -12,13 +12,14 @@ import math
 from pathlib import Path
 from typing import Optional
 from collections import Counter, defaultdict
+from db import get_connection
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 
 
 def init_evolution_schema():
     """Add evolution tables to the existing memory DB."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS persona_evolution (
@@ -62,7 +63,6 @@ def init_evolution_schema():
         CREATE INDEX IF NOT EXISTS idx_persona_style_drift_persona ON persona_style_drift(persona_id);
     """)
     conn.commit()
-    conn.close()
 
 
 def compute_style_metrics(text: str) -> dict:
@@ -154,7 +154,7 @@ def extract_domains(text: str) -> list:
 def record_style_snapshot(persona_id: str, session_id: str, text: str):
     """Record a persona's style metrics for a session."""
     metrics = compute_style_metrics(text)
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO persona_style_drift
@@ -166,7 +166,6 @@ def record_style_snapshot(persona_id: str, session_id: str, text: str):
          metrics["formality_score"])
     )
     conn.commit()
-    conn.close()
     return metrics
 
 
@@ -176,7 +175,7 @@ def update_persona_expertise(persona_id: str, session_id: str, text: str, topics
     if not domains:
         return []
 
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
 
     updated = []
@@ -207,14 +206,13 @@ def update_persona_expertise(persona_id: str, session_id: str, text: str, topics
         updated.append({"domain": domain, "level": round(new_level, 3)})
 
     conn.commit()
-    conn.close()
     return updated
 
 
 def record_adaptation(persona_id: str, session_id: str, adaptation_type: str,
                       before: str, after: str, reason: str, score_change: float = 0):
     """Record that a persona adapted in some way."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO persona_evolution
@@ -223,12 +221,11 @@ def record_adaptation(persona_id: str, session_id: str, adaptation_type: str,
         (persona_id, session_id, adaptation_type, before, after, reason, score_change)
     )
     conn.commit()
-    conn.close()
 
 
 def get_persona_profile(persona_id: str) -> dict:
     """Get complete evolution profile for a persona."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -286,7 +283,6 @@ def get_persona_profile(persona_id: str) -> dict:
             "formality_change": round(latest["formality_score"] - first["formality_score"], 3),
         }
 
-    conn.close()
 
     return {
         "persona_id": persona_id,
@@ -375,7 +371,7 @@ def generate_adaptation_prompt(persona_id: str, recent_scores: dict) -> str:
 
 def get_evolution_summary() -> dict:
     """Get overview stats about persona evolution."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -398,7 +394,6 @@ def get_evolution_summary() -> dict:
     )
     top_domains = [dict(row) for row in cur.fetchall()]
 
-    conn.close()
 
     return {
         "personas_with_expertise": personas_with_expertise,

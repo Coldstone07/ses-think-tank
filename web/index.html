@@ -126,7 +126,8 @@
   .msg-bubble {
     padding: 10px 14px; border-radius: 14px;
     background: var(--surface2); border: 1px solid var(--border);
-    font-size: 13px; line-height: 1.6; max-width: 580px;
+    font-size: 13px; line-height: 1.6; max-width: 100%;
+    word-wrap: break-word; overflow-wrap: break-word;
   }
   .message.right .msg-bubble { background: rgba(99,102,241,0.1); border-color: rgba(99,102,241,0.2); }
   .msg-meta { font-size: 10px; color: var(--text-muted); margin-top: 5px; display: flex; gap: 8px; align-items: center; }
@@ -258,6 +259,12 @@
   .hitl-history-mode.resume { background: rgba(16,185,129,0.2); color: #34d399; }
   .hitl-history-msg { color: var(--text); line-height: 1.4; }
   .hitl-history-time { color: var(--text-muted); flex-shrink: 0; font-size: 9px; }
+
+  /* HITL in main center area */
+  .hitl-section-main {
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0;
+  }
 
   /* Whiteboard */
   .whiteboard-section { padding: 10px 14px; border-top: 1px solid var(--border); }
@@ -769,6 +776,25 @@
     </div>
     <div class="typing-text" id="typingText">Thinking...</div>
     </div>
+    <!-- HITL / Human Steerer - in main center area -->
+    <div class="hitl-section-main" id="hitlSection" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="panel-title" style="margin:0;">👤 Human Steer</div>
+        <span class="hitl-status running" id="hitlStatus">● Running</span>
+      </div>
+      <div class="hitl-controls">
+        <button class="hitl-mode-btn steer active" data-mode="steer">🧭 Steer</button>
+        <button class="hitl-mode-btn veto" data-mode="veto">🛑 Veto</button>
+        <button class="hitl-mode-btn amplify" data-mode="amplify">🔊 Amplify</button>
+        <button class="hitl-mode-btn pause" data-mode="pause">⏸ Pause</button>
+        <button class="hitl-mode-btn resume" data-mode="resume">▶ Resume</button>
+      </div>
+      <div class="hitl-input-row">
+        <input type="text" class="hitl-input" id="hitlInput" placeholder="Intervention message...">
+        <button class="hitl-send" id="hitlSend">Send</button>
+      </div>
+      <div class="hitl-history" id="hitlHistory"><div style="font-size:10px;color:var(--text-muted);text-align:center;padding:8px;">No interventions yet.</div></div>
+    </div>
 </div>
 
 <!-- RIGHT PANEL -->
@@ -820,24 +846,6 @@
         <div><span class="state-theme-badge" id="stateTheme">—</span></div>
         <div class="panel-title" style="font-size:9px;margin-top:6px;">Topics Covered</div>
         <div class="state-topics-list" id="stateTopicsList"><div style="font-size:10px;color:var(--text-muted);padding:3px 6px;">No topics yet.</div></div>
-      </div>
-      <div class="hitl-section" id="hitlSection" style="display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div class="panel-title" style="margin:0;">👤 Control</div>
-          <span class="hitl-status running" id="hitlStatus">● Running</span>
-        </div>
-        <div class="hitl-controls">
-          <button class="hitl-mode-btn steer active" data-mode="steer">🧭 Steer</button>
-          <button class="hitl-mode-btn veto" data-mode="veto">🛑 Veto</button>
-          <button class="hitl-mode-btn amplify" data-mode="amplify">🔊 Amplify</button>
-          <button class="hitl-mode-btn pause" data-mode="pause">⏸ Pause</button>
-          <button class="hitl-mode-btn resume" data-mode="resume">▶ Resume</button>
-        </div>
-        <div class="hitl-input-row">
-          <input type="text" class="hitl-input" id="hitlInput" placeholder="Intervention...">
-          <button class="hitl-send" id="hitlSend">Send</button>
-        </div>
-        <div class="hitl-history" id="hitlHistory"><div style="font-size:10px;color:var(--text-muted);text-align:center;padding:8px;">No interventions yet.</div></div>
       </div>
       <div class="whiteboard-section" id="whiteboardSection" style="display:none;">
         <div class="whiteboard-header">

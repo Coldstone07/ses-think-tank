@@ -13,6 +13,7 @@ import base64
 from pathlib import Path
 from typing import Optional, Dict, List
 from cryptography.fernet import Fernet, InvalidToken
+from db import get_connection
 
 SETTINGS_DB_PATH = Path(os.environ.get("SES_SETTINGS_DB", "data/settings.db"))
 
@@ -25,7 +26,7 @@ _cipher = Fernet(_ENCRYPTION_KEY)
 
 def init_settings_schema():
     """Create settings tables."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS user_settings (
@@ -63,7 +64,6 @@ def init_settings_schema():
         CREATE INDEX IF NOT EXISTS idx_api_keys_provider ON api_keys(provider);
     """)
     conn.commit()
-    conn.close()
 
 
 def _encrypt(value: str) -> str:
@@ -189,7 +189,7 @@ def get_available_integrations() -> List[dict]:
 
 def save_provider_config(user_id: str, provider_name: str, config: dict, enabled: bool = True):
     """Save provider configuration for a user."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO provider_config (user_id, provider_name, config_json, is_enabled, updated_at)
@@ -200,12 +200,11 @@ def save_provider_config(user_id: str, provider_name: str, config: dict, enabled
          json.dumps(config), 1 if enabled else 0, time.time())
     )
     conn.commit()
-    conn.close()
 
 
 def get_provider_config(user_id: str, provider_name: str) -> dict:
     """Get provider configuration for a user."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -213,7 +212,6 @@ def get_provider_config(user_id: str, provider_name: str) -> dict:
         (user_id, provider_name)
     )
     row = cur.fetchone()
-    conn.close()
     if row:
         return {
             "provider_name": provider_name,
@@ -226,12 +224,11 @@ def get_provider_config(user_id: str, provider_name: str) -> dict:
 
 def get_all_provider_configs(user_id: str) -> list:
     """Get all provider configurations for a user."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM provider_config WHERE user_id = ? ORDER BY is_default DESC", (user_id,))
     rows = cur.fetchall()
-    conn.close()
     return [
         {
             "provider_name": row["provider_name"],
@@ -245,7 +242,7 @@ def get_all_provider_configs(user_id: str) -> list:
 
 def set_default_provider(user_id: str, provider_name: str):
     """Set a provider as the default for a user."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
     cur.execute("UPDATE provider_config SET is_default = 0 WHERE user_id = ?", (user_id,))
     cur.execute(
@@ -253,12 +250,11 @@ def set_default_provider(user_id: str, provider_name: str):
         (user_id, provider_name)
     )
     conn.commit()
-    conn.close()
 
 
 def get_default_provider(user_id: str) -> str:
     """Get the default provider for a user. Falls back to LM Studio."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -266,7 +262,6 @@ def get_default_provider(user_id: str) -> str:
         (user_id,)
     )
     row = cur.fetchone()
-    conn.close()
     if row:
         return row["provider_name"]
     # Fallback: check env, then LM Studio
@@ -278,7 +273,7 @@ def get_default_provider(user_id: str) -> str:
 def save_api_key(user_id: str, provider: str, key_name: str, key_value: str, label: str = ""):
     """Save an API key (encrypted)."""
     encrypted = _encrypt(key_value)
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO api_keys (user_id, provider, key_name, encrypted_key, label, updated_at)
@@ -289,12 +284,11 @@ def save_api_key(user_id: str, provider: str, key_name: str, key_value: str, lab
          encrypted, label, time.time())
     )
     conn.commit()
-    conn.close()
 
 
 def get_api_key(user_id: str, provider: str, key_name: str) -> str:
     """Retrieve and decrypt an API key."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -302,7 +296,6 @@ def get_api_key(user_id: str, provider: str, key_name: str) -> str:
         (user_id, provider, key_name)
     )
     row = cur.fetchone()
-    conn.close()
     if row:
         return _decrypt(row["encrypted_key"])
     # Fallback: check environment variable
@@ -314,7 +307,7 @@ def get_api_key(user_id: str, provider: str, key_name: str) -> str:
 
 def get_api_keys_list(user_id: str) -> list:
     """List all API keys (without revealing the actual keys)."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -322,17 +315,15 @@ def get_api_keys_list(user_id: str) -> list:
         (user_id,)
     )
     rows = cur.fetchall()
-    conn.close()
     return [dict(row) for row in rows]
 
 
 def delete_api_key(user_id: str, key_id: int):
     """Delete (deactivate) an API key."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
     cur.execute("UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?", (key_id, user_id))
     conn.commit()
-    conn.close()
 
 
 def get_environment_keys() -> dict:
@@ -352,7 +343,7 @@ def get_environment_keys() -> dict:
 
 def save_setting(user_id: str, key: str, value: str):
     """Save a user setting."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO user_settings (user_id, setting_key, setting_value, updated_at)
@@ -362,12 +353,11 @@ def save_setting(user_id: str, key: str, value: str):
         (user_id, key, value, time.time(), value, time.time())
     )
     conn.commit()
-    conn.close()
 
 
 def get_setting(user_id: str, key: str, default: str = "") -> str:
     """Get a user setting."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -375,7 +365,6 @@ def get_setting(user_id: str, key: str, default: str = "") -> str:
         (user_id, key)
     )
     row = cur.fetchone()
-    conn.close()
     if row:
         return row["setting_value"]
     return default
@@ -383,12 +372,11 @@ def get_setting(user_id: str, key: str, default: str = "") -> str:
 
 def get_all_settings(user_id: str) -> dict:
     """Get all user settings."""
-    conn = sqlite3.connect(str(SETTINGS_DB_PATH))
+    conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT setting_key, setting_value FROM user_settings WHERE user_id = ?", (user_id,))
     rows = cur.fetchall()
-    conn.close()
     return {row["setting_key"]: row["setting_value"] for row in rows}
 
 

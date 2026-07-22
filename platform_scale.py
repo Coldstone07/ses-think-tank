@@ -7,12 +7,14 @@ and plugin marketplace registry.
 import os
 import time
 import json
+import secrets
 import sqlite3
 import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
 from collections import defaultdict
+from db import get_connection
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 MARKETPLACE_DB_PATH = Path(os.environ.get("SES_MARKETPLACE_DB", "data/marketplace.db"))
@@ -266,7 +268,7 @@ class APIRouter:
 
 def init_marketplace_schema():
     """Create marketplace tables."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS plugin_registry (
@@ -303,16 +305,15 @@ def init_marketplace_schema():
         CREATE INDEX IF NOT EXISTS idx_reviews_plugin ON plugin_reviews(plugin_id);
     """)
     conn.commit()
-    conn.close()
 
 
 def register_plugin(name: str, description: str, category: str = "tool",
                      version: str = "1.0.0", author: str = "",
                      download_url: str = "", tags: List[str] = None) -> dict:
     """Register a plugin in the marketplace."""
-    plugin_id = f"plugin_{int(time.time() * 1000) % 1000000000:09d}"
+    plugin_id = f"plugin_{secrets.token_urlsafe(8)}"
 
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO plugin_registry
@@ -323,19 +324,17 @@ def register_plugin(name: str, description: str, category: str = "tool",
          download_url, json.dumps(tags or []))
     )
     conn.commit()
-    conn.close()
 
     return get_plugin(plugin_id)
 
 
 def get_plugin(plugin_id: str) -> Optional[dict]:
     """Get a plugin by ID."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM plugin_registry WHERE plugin_id = ?", (plugin_id,))
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return None
@@ -348,7 +347,7 @@ def get_plugin(plugin_id: str) -> Optional[dict]:
 def list_plugins(category: str = None, approved_only: bool = True,
                   limit: int = 50) -> List[dict]:
     """List plugins, optionally filtered by category."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -374,7 +373,6 @@ def list_plugins(category: str = None, approved_only: bool = True,
         )
 
     rows = cur.fetchall()
-    conn.close()
 
     result = []
     for row in rows:
@@ -386,7 +384,7 @@ def list_plugins(category: str = None, approved_only: bool = True,
 
 def search_plugins(query: str, limit: int = 20) -> List[dict]:
     """Search plugins by name or description."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -397,7 +395,6 @@ def search_plugins(query: str, limit: int = 20) -> List[dict]:
         (f"%{query}%", f"%{query}%", limit)
     )
     rows = cur.fetchall()
-    conn.close()
 
     result = []
     for row in rows:
@@ -409,21 +406,20 @@ def search_plugins(query: str, limit: int = 20) -> List[dict]:
 
 def install_plugin(plugin_id: str) -> Optional[dict]:
     """Increment install count for a plugin."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.execute(
         "UPDATE plugin_registry SET install_count = install_count + 1 WHERE plugin_id = ?",
         (plugin_id,)
     )
     conn.commit()
-    conn.close()
 
     return get_plugin(plugin_id)
 
 
 def approve_plugin(plugin_id: str) -> bool:
     """Approve a plugin for the marketplace."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     cur = conn.cursor()
     cur.execute(
         "UPDATE plugin_registry SET approved = 1 WHERE plugin_id = ?",
@@ -431,7 +427,6 @@ def approve_plugin(plugin_id: str) -> bool:
     )
     approved = cur.rowcount > 0
     conn.commit()
-    conn.close()
     return approved
 
 
@@ -441,9 +436,9 @@ def rate_plugin(plugin_id: str, user_id: str, rating: int,
     if rating < 1 or rating > 5:
         return None
 
-    review_id = f"rev_{int(time.time() * 1000) % 1000000000:09d}"
+    review_id = f"rev_{secrets.token_urlsafe(8)}"
 
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     cur = conn.cursor()
 
     # Insert review
@@ -471,14 +466,13 @@ def rate_plugin(plugin_id: str, user_id: str, rating: int,
         )
 
     conn.commit()
-    conn.close()
 
     return {"review_id": review_id, "plugin_id": plugin_id, "rating": rating}
 
 
 def get_plugin_reviews(plugin_id: str, limit: int = 20) -> List[dict]:
     """Get reviews for a plugin."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -486,14 +480,13 @@ def get_plugin_reviews(plugin_id: str, limit: int = 20) -> List[dict]:
         (plugin_id, limit)
     )
     rows = cur.fetchall()
-    conn.close()
 
     return [dict(row) for row in rows]
 
 
 def get_marketplace_stats() -> dict:
     """Get marketplace statistics."""
-    conn = sqlite3.connect(str(_marketplace_db_path()))
+    conn = get_connection(str(_marketplace_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -512,7 +505,6 @@ def get_marketplace_stats() -> dict:
     cur.execute("SELECT category, COUNT(*) as count FROM plugin_registry GROUP BY category")
     categories = {row["category"]: row["count"] for row in cur.fetchall()}
 
-    conn.close()
 
     return {
         "total_plugins": total,

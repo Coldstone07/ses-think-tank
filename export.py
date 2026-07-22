@@ -9,6 +9,7 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
+from db import get_connection
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 SHARES_DB_PATH = Path(os.environ.get("SES_AUTH_DB", "data/auth.db"))
@@ -28,7 +29,7 @@ def _shares_db_path() -> Path:
 
 def export_session_markdown(session_id: str) -> Optional[str]:
     """Export a session as formatted markdown."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -36,7 +37,6 @@ def export_session_markdown(session_id: str) -> Optional[str]:
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (session_id,))
     session = cur.fetchone()
     if not session:
-        conn.close()
         return None
     session = dict(session)
 
@@ -68,7 +68,6 @@ def export_session_markdown(session_id: str) -> Optional[str]:
     except Exception:
         insights = []
 
-    conn.close()
 
     # Build markdown
     md = []
@@ -128,14 +127,13 @@ def export_session_markdown(session_id: str) -> Optional[str]:
 
 def export_all_sessions_markdown(user_id: str = "default") -> List[dict]:
     """Get summary of all sessions for a user."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
         "SELECT * FROM memory_sessions ORDER BY started_at DESC"
     )
     sessions = cur.fetchall()
-    conn.close()
 
     return [
         {
@@ -154,24 +152,22 @@ def export_all_sessions_markdown(user_id: str = "default") -> List[dict]:
 def get_public_session(share_id: str) -> Optional[dict]:
     """Get a shared session for public viewing."""
     # Check shares DB
-    conn = sqlite3.connect(str(_shares_db_path()))
+    conn = get_connection(str(_shares_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM session_shares WHERE share_id = ?", (share_id,))
     share = cur.fetchone()
-    conn.close()
 
     if not share:
         return None
 
     # Get session from memory DB
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (share["session_id"],))
     session = cur.fetchone()
     if not session:
-        conn.close()
         return None
 
     cur.execute(
@@ -179,7 +175,6 @@ def get_public_session(share_id: str) -> Optional[dict]:
         (share["session_id"],)
     )
     messages = [dict(row) for row in cur.fetchall()]
-    conn.close()
 
     return {
         "share_id": share_id,
@@ -198,7 +193,7 @@ def get_public_session(share_id: str) -> Optional[dict]:
 
 def generate_rss_feed(base_url: str = "http://localhost:8773", limit: int = 20) -> str:
     """Generate RSS 2.0 feed of recent sessions."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -206,7 +201,6 @@ def generate_rss_feed(base_url: str = "http://localhost:8773", limit: int = 20) 
         (limit,)
     )
     sessions = cur.fetchall()
-    conn.close()
 
     rss = []
     rss.append('<?xml version="1.0" encoding="UTF-8"?>')

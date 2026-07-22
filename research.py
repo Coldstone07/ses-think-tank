@@ -8,11 +8,13 @@ import os
 import sqlite3
 import time
 import json
+import secrets
 import hashlib
 import random
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
+from db import get_connection
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 
@@ -23,7 +25,7 @@ def _memory_db_path() -> Path:
 
 def init_research_schema():
     """Create research tables for templates, A/B tests, and reproducibility."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS session_templates (
@@ -123,7 +125,6 @@ def init_research_schema():
         CREATE INDEX IF NOT EXISTS idx_ses_scores_session ON ses_scores(session_id);
     """)
     conn.commit()
-    conn.close()
 
 
 # ─── SESSION TEMPLATES ──────────────────────────────────────────────────────
@@ -133,9 +134,9 @@ def create_template(name: str, description: str, personas: List[str],
                      system_prompt: str = "", max_turns: int = 20,
                      created_by: str = "") -> dict:
     """Create a reusable session template."""
-    template_id = f"tpl_{int(time.time() * 1000) % 1000000000:09d}"
+    template_id = f"tpl_{secrets.token_urlsafe(8)}"
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO session_templates
@@ -146,19 +147,17 @@ def create_template(name: str, description: str, personas: List[str],
          workflow, system_prompt, max_turns, created_by)
     )
     conn.commit()
-    conn.close()
 
     return get_template(template_id)
 
 
 def get_template(template_id: str) -> Optional[dict]:
     """Get a template by ID."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM session_templates WHERE template_id = ?", (template_id,))
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return None
@@ -170,7 +169,7 @@ def get_template(template_id: str) -> Optional[dict]:
 
 def list_templates(limit: int = 50) -> List[dict]:
     """List all templates sorted by usage."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -178,7 +177,6 @@ def list_templates(limit: int = 50) -> List[dict]:
         (limit,)
     )
     rows = cur.fetchall()
-    conn.close()
 
     result = []
     for row in rows:
@@ -190,26 +188,24 @@ def list_templates(limit: int = 50) -> List[dict]:
 
 def use_template(template_id: str) -> Optional[dict]:
     """Increment usage count and return template."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         "UPDATE session_templates SET usage_count = usage_count + 1 WHERE template_id = ?",
         (template_id,)
     )
     conn.commit()
-    conn.close()
 
     return get_template(template_id)
 
 
 def delete_template(template_id: str) -> bool:
     """Delete a template."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute("DELETE FROM session_templates WHERE template_id = ?", (template_id,))
     deleted = cur.rowcount > 0
     conn.commit()
-    conn.close()
     return deleted
 
 
@@ -219,9 +215,9 @@ def create_ab_test(name: str, description: str, variant_a_personas: List[str],
                     variant_b_personas: List[str], topic: str = "",
                     seed_input: str = "") -> dict:
     """Create an A/B test comparing two persona configurations."""
-    test_id = f"ab_{int(time.time() * 1000) % 1000000000:09d}"
+    test_id = f"ab_{secrets.token_urlsafe(8)}"
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO ab_tests
@@ -232,19 +228,17 @@ def create_ab_test(name: str, description: str, variant_a_personas: List[str],
          json.dumps(variant_b_personas), topic, seed_input)
     )
     conn.commit()
-    conn.close()
 
     return get_ab_test(test_id)
 
 
 def get_ab_test(test_id: str) -> Optional[dict]:
     """Get an A/B test by ID."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM ab_tests WHERE test_id = ?", (test_id,))
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return None
@@ -260,7 +254,7 @@ def record_ab_result(test_id: str, variant: str, session_id: str,
                       spiritual_score: float = 0, turn_count: int = 0,
                       avg_response_time: float = 0) -> dict:
     """Record results for one variant of an A/B test."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO ab_test_results
@@ -271,7 +265,6 @@ def record_ab_result(test_id: str, variant: str, session_id: str,
          spiritual_score, turn_count, avg_response_time)
     )
     conn.commit()
-    conn.close()
 
     return {"test_id": test_id, "variant": variant, "session_id": session_id}
 
@@ -282,7 +275,7 @@ def get_ab_test_summary(test_id: str) -> Optional[dict]:
     if not test:
         return None
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -321,7 +314,6 @@ def get_ab_test_summary(test_id: str) -> Optional[dict]:
         summary["winner"] = "inconclusive"
         summary["margin"] = 0
 
-    conn.close()
     return summary
 
 
@@ -329,16 +321,15 @@ def get_ab_test_summary(test_id: str) -> Optional[dict]:
 
 def create_provider_comparison(name: str, prompt: str) -> dict:
     """Create a new provider comparison test."""
-    comparison_id = f"cmp_{int(time.time() * 1000) % 1000000000:09d}"
+    comparison_id = f"cmp_{secrets.token_urlsafe(8)}"
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO provider_comparisons (comparison_id, name, prompt) VALUES (?, ?, ?)",
         (comparison_id, name, prompt)
     )
     conn.commit()
-    conn.close()
 
     return {"comparison_id": comparison_id, "name": name, "prompt": prompt}
 
@@ -350,7 +341,7 @@ def record_provider_result(comparison_id: str, provider: str, model: str,
                             emotional_score: float = 0,
                             spiritual_score: float = 0) -> dict:
     """Record a provider's result in a comparison."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO provider_results
@@ -361,21 +352,19 @@ def record_provider_result(comparison_id: str, provider: str, model: str,
          token_count, social_score, emotional_score, spiritual_score)
     )
     conn.commit()
-    conn.close()
 
     return {"comparison_id": comparison_id, "provider": provider}
 
 
 def get_provider_comparison(comparison_id: str) -> Optional[dict]:
     """Get a full provider comparison with all results."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     cur.execute("SELECT * FROM provider_comparisons WHERE comparison_id = ?", (comparison_id,))
     comp = cur.fetchone()
     if not comp:
-        conn.close()
         return None
 
     cur.execute(
@@ -383,7 +372,6 @@ def get_provider_comparison(comparison_id: str) -> Optional[dict]:
         (comparison_id,)
     )
     results = [dict(row) for row in cur.fetchall()]
-    conn.close()
 
     return {
         "comparison_id": comparison_id,
@@ -404,7 +392,7 @@ def create_reproducible_session(session_id: str, seed: str, prompt: str,
         f"{seed}:{prompt}:{json.dumps(personas, sort_keys=True)}".encode()
     ).hexdigest()[:16]
 
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO reproducible_sessions
@@ -414,7 +402,6 @@ def create_reproducible_session(session_id: str, seed: str, prompt: str,
          json.dumps(config or {}), checksum)
     )
     conn.commit()
-    conn.close()
 
     return {
         "session_id": session_id,
@@ -426,12 +413,11 @@ def create_reproducible_session(session_id: str, seed: str, prompt: str,
 
 def get_reproducible_session(seed: str) -> Optional[dict]:
     """Look up a reproducible session by seed."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM reproducible_sessions WHERE seed = ?", (seed,))
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return None
@@ -460,7 +446,7 @@ def verify_reproducibility(session_id: str, seed: str, prompt: str,
 
 def compute_ses_scores(session_id: str) -> dict:
     """Compute and store SES scores for a session."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -511,7 +497,6 @@ def compute_ses_scores(session_id: str) -> dict:
         (session_id, social, emotional, spiritual, overall)
     )
     conn.commit()
-    conn.close()
 
     return {
         "session_id": session_id,
@@ -529,7 +514,7 @@ def count_pattern_score(text: str, patterns: List[str]) -> int:
 
 def get_ses_scores(session_id: str = None, limit: int = 50) -> list:
     """Get SES scores, optionally filtered by session."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -545,7 +530,6 @@ def get_ses_scores(session_id: str = None, limit: int = 50) -> list:
         )
 
     rows = cur.fetchall()
-    conn.close()
 
     result = []
     for row in rows:

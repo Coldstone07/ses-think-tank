@@ -19,6 +19,7 @@ from datetime import datetime, timedelta
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import jwt, JWTError
+from db import get_connection
 
 AUTH_DB_PATH = Path(os.environ.get("SES_AUTH_DB", "data/auth.db"))
 SECRET_KEY = os.environ.get("SES_JWT_SECRET", secrets.token_urlsafe(32))
@@ -31,7 +32,7 @@ security = HTTPBearer(auto_error=False)
 
 def init_auth_schema():
     """Create auth tables."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS users (
@@ -79,9 +80,7 @@ def init_auth_schema():
             session_id TEXT NOT NULL,
             owner_id TEXT NOT NULL,
             is_public INTEGER DEFAULT 0,
-            created_at REAL DEFAULT (julianday('now')),
-            FOREIGN KEY (session_id) REFERENCES memory_sessions(session_id),
-            FOREIGN KEY (owner_id) REFERENCES users(user_id)
+            created_at REAL DEFAULT (strftime('%s', 'now'))
         );
 
         CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
@@ -90,7 +89,6 @@ def init_auth_schema():
         CREATE INDEX IF NOT EXISTS idx_session_shares_share ON session_shares(share_id);
     """)
     conn.commit()
-    conn.close()
 
 
 # ─── PASSWORD HASHING (HMAC-SHA256, no passlib) ─────────────────────────────
@@ -134,14 +132,13 @@ def create_refresh_token(user_id: str) -> str:
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     # Store hash of refresh token
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO refresh_tokens (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
         (token_hash, user_id, expire.timestamp())
     )
     conn.commit()
-    conn.close()
     return token
 
 
@@ -166,7 +163,7 @@ def verify_refresh_token(token: str) -> dict:
         raise HTTPException(status_code=401, detail="Not a refresh token")
     # Verify token hash exists and isn't expired
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -174,7 +171,6 @@ def verify_refresh_token(token: str) -> dict:
         (token_hash, time.time())
     )
     row = cur.fetchone()
-    conn.close()
     if not row:
         raise HTTPException(status_code=401, detail="Refresh token expired or revoked")
     return payload
@@ -192,7 +188,7 @@ def register_user(username: str, password: str, email: str = "", display_name: s
     user_id = str(uuid.uuid4())
     hashed = hash_password(password)
 
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     try:
         cur.execute(
@@ -207,9 +203,7 @@ def register_user(username: str, password: str, email: str = "", display_name: s
         )
         conn.commit()
     except sqlite3.IntegrityError:
-        conn.close()
         raise HTTPException(status_code=409, detail="Username or email already exists")
-    conn.close()
 
     return {
         "user_id": user_id,
@@ -222,22 +216,20 @@ def register_user(username: str, password: str, email: str = "", display_name: s
 
 def authenticate_user(username: str, password: str) -> dict:
     """Authenticate and return user dict + tokens."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,))
     user = cur.fetchone()
-    conn.close()
 
     if not user or not verify_password(password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Invalid username or password")
 
     # Update last login
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.execute("UPDATE users SET last_login = ? WHERE user_id = ?", (time.time(), user["user_id"]))
     conn.commit()
-    conn.close()
 
     access_token = create_access_token(user["user_id"], user["role"])
     refresh_token = create_refresh_token(user["user_id"])
@@ -257,24 +249,22 @@ def authenticate_user(username: str, password: str) -> dict:
 
 
 def get_user_by_id(user_id: str) -> Optional[dict]:
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE user_id = ? AND is_active = 1", (user_id,))
     row = cur.fetchone()
-    conn.close()
     if row:
         return dict(row)
     return None
 
 
 def get_user_by_username(username: str) -> Optional[dict]:
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,))
     row = cur.fetchone()
-    conn.close()
     if row:
         return dict(row)
     return None
@@ -319,7 +309,7 @@ def require_admin(current_user: dict = Depends(get_current_user)) -> dict:
 
 def check_rate_limit(user_id: str, endpoint: str, max_requests: int = 60, window_seconds: int = 60) -> bool:
     """Check if a user has exceeded rate limits. Returns True if allowed."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     now = time.time()
     window_start = now - window_seconds
@@ -339,10 +329,8 @@ def check_rate_limit(user_id: str, endpoint: str, max_requests: int = 60, window
             (user_id, endpoint, now, now)
         )
         conn.commit()
-        conn.close()
         return True
     elif row[0] >= max_requests:
-        conn.close()
         return False
     else:
         cur.execute(
@@ -350,7 +338,6 @@ def check_rate_limit(user_id: str, endpoint: str, max_requests: int = 60, window
             (user_id, endpoint)
         )
         conn.commit()
-        conn.close()
         return True
 
 
@@ -360,24 +347,22 @@ def reset_monthly_quotas():
     """Reset monthly quotas for all users (call this via cron on 1st of month)."""
     now = datetime.utcnow()
     reset_date = now.strftime("%Y-%m")
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         "UPDATE user_quotas SET tokens_used_this_month = 0, sessions_this_month = 0, reset_date = ?",
         (reset_date,)
     )
     conn.commit()
-    conn.close()
 
 
 def check_quota(user_id: str, quota_type: str = "session") -> bool:
     """Check if user has quota remaining. Returns True if allowed."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM user_quotas WHERE user_id = ?", (user_id,))
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return True  # No quota set = unlimited
@@ -387,14 +372,13 @@ def check_quota(user_id: str, quota_type: str = "session") -> bool:
 
     # Reset if new month
     if row["reset_date"] != reset_date:
-        conn = sqlite3.connect(str(AUTH_DB_PATH))
+        conn = get_connection(str(AUTH_DB_PATH))
         cur = conn.cursor()
         cur.execute(
             "UPDATE user_quotas SET tokens_used_this_month = 0, sessions_this_month = 0, reset_date = ?",
             (reset_date,)
         )
         conn.commit()
-        conn.close()
         return True
 
     if quota_type == "session":
@@ -406,7 +390,7 @@ def check_quota(user_id: str, quota_type: str = "session") -> bool:
 
 def increment_quota(user_id: str, quota_type: str = "session", amount: int = 1):
     """Increment quota usage."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     if quota_type == "session":
         cur.execute(
@@ -419,17 +403,15 @@ def increment_quota(user_id: str, quota_type: str = "session", amount: int = 1):
             (amount, user_id)
         )
     conn.commit()
-    conn.close()
 
 
 def get_quota_status(user_id: str) -> dict:
     """Get current quota status for a user."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM user_quotas WHERE user_id = ?", (user_id,))
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return {"tokens_used": 0, "token_budget": "unlimited", "sessions_used": 0, "session_budget": "unlimited"}
@@ -448,25 +430,23 @@ def get_quota_status(user_id: str) -> dict:
 def create_session_share(session_id: str, owner_id: str, is_public: bool = False) -> str:
     """Create a shareable link for a session."""
     share_id = secrets.token_urlsafe(16)
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         "INSERT INTO session_shares (share_id, session_id, owner_id, is_public) VALUES (?, ?, ?, ?)",
         (share_id, session_id, owner_id, 1 if is_public else 0)
     )
     conn.commit()
-    conn.close()
     return share_id
 
 
 def get_shared_session(share_id: str) -> Optional[dict]:
     """Get a shared session by share ID."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM session_shares WHERE share_id = ?", (share_id,))
     row = cur.fetchone()
-    conn.close()
     if row:
         return dict(row)
     return None
@@ -474,19 +454,18 @@ def get_shared_session(share_id: str) -> Optional[dict]:
 
 def revoke_session_share(share_id: str, owner_id: str):
     """Revoke a session share."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         "DELETE FROM session_shares WHERE share_id = ? AND owner_id = ?",
         (share_id, owner_id)
     )
     conn.commit()
-    conn.close()
 
 
 def get_user_shares(user_id: str) -> list:
     """Get all shares for a user."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -496,7 +475,6 @@ def get_user_shares(user_id: str) -> list:
         (user_id,)
     )
     rows = cur.fetchall()
-    conn.close()
     return [dict(row) for row in rows]
 
 
@@ -504,22 +482,20 @@ def get_user_shares(user_id: str) -> list:
 
 def seed_default_user():
     """Create a default 'admin' user if none exist. Password from env or 'admin123'."""
-    conn = sqlite3.connect(str(AUTH_DB_PATH))
+    conn = get_connection(str(AUTH_DB_PATH))
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) as c FROM users")
     count = cur.fetchone()[0]
-    conn.close()
 
     if count == 0:
         default_password = os.environ.get("SES_DEFAULT_PASSWORD", "admin123")
         try:
             user = register_user("admin", default_password, "", "Admin")
             # Make admin
-            conn = sqlite3.connect(str(AUTH_DB_PATH))
+            conn = get_connection(str(AUTH_DB_PATH))
             cur = conn.cursor()
             cur.execute("UPDATE users SET role = 'admin' WHERE user_id = ?", (user["user_id"],))
             conn.commit()
-            conn.close()
             print(f"[auth] Default admin user created. Password: {default_password}")
         except HTTPException:
             pass  # Already exists

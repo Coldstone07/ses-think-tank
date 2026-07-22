@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 from typing import Optional
 from collections import Counter, defaultdict
+from db import get_connection, reset_pool
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 
@@ -50,7 +51,7 @@ QUALITY_INDICATORS = {
 
 def init_evaluation_schema():
     """Add evaluation tables to the existing memory DB."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS session_metrics (
@@ -93,7 +94,6 @@ def init_evaluation_schema():
         CREATE INDEX IF NOT EXISTS idx_turn_analytics_session ON turn_analytics(session_id);
     """)
     conn.commit()
-    conn.close()
 
 
 def score_dimension(text: str, dimension: str) -> dict:
@@ -219,7 +219,7 @@ def compute_gini(values: list) -> float:
 
 def save_session_metrics(session_id: str, metrics: dict):
     """Save computed metrics to the database."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
 
     # Save dimension scores
@@ -246,7 +246,6 @@ def save_session_metrics(session_id: str, metrics: dict):
             )
 
     conn.commit()
-    conn.close()
 
 
 def get_insights_for_session(session_id: str) -> list:
@@ -260,7 +259,7 @@ def get_insights_for_session(session_id: str) -> list:
 
 def get_persona_trends(persona_id: str, limit: int = 20) -> dict:
     """Get a persona's performance trends across sessions."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -275,7 +274,6 @@ def get_persona_trends(persona_id: str, limit: int = 20) -> dict:
         (persona_id, limit)
     )
     rows = [dict(row) for row in cur.fetchall()]
-    conn.close()
 
     # Aggregate by dimension
     dimension_avg = defaultdict(list)
@@ -295,7 +293,7 @@ def get_persona_trends(persona_id: str, limit: int = 20) -> dict:
 
 def get_session_analytics(session_id: str) -> dict:
     """Get full analytics for a specific session."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -313,7 +311,6 @@ def get_session_analytics(session_id: str) -> dict:
     )
     scores = [dict(row) for row in cur.fetchall()]
 
-    conn.close()
 
     return {
         "session_id": session_id,
@@ -324,7 +321,7 @@ def get_session_analytics(session_id: str) -> dict:
 
 def get_dashboard_summary() -> dict:
     """Get overview stats for the evaluation dashboard."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -365,7 +362,6 @@ def get_dashboard_summary() -> dict:
     )
     recent = [dict(row) for row in cur.fetchall()]
 
-    conn.close()
 
     return {
         "total_sessions_analyzed": total_sessions,
@@ -381,13 +377,12 @@ def export_session_report(session_id: str) -> dict:
     analytics = get_session_analytics(session_id)
 
     # Get session info
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (session_id,))
     session_row = cur.fetchone()
     session_info = dict(session_row) if session_row else {}
-    conn.close()
 
     return {
         "session": session_info,
@@ -398,7 +393,7 @@ def export_session_report(session_id: str) -> dict:
 
 def get_quality_trend(limit: int = 30) -> list:
     """Get quality trend over recent sessions for charting."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -415,7 +410,6 @@ def get_quality_trend(limit: int = 30) -> list:
     )
 
     rows = [dict(row) for row in cur.fetchall()]
-    conn.close()
 
     # Reverse to chronological order
     return list(reversed(rows))

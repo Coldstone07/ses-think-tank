@@ -183,9 +183,12 @@ def tmp_marketplace_db(tmp_path):
     yield tmp_path
 
     os.environ.pop("SES_MARKETPLACE_DB", None)
-    conn = sqlite3.connect(str(tmp_path / "marketplace.db"))
-    conn.close()
-    (tmp_path / "marketplace.db").unlink(missing_ok=True)
+    from db import reset_pool
+    reset_pool()  # Release pooled connections before deleting temp DB
+    try:
+        (tmp_path / "marketplace.db").unlink(missing_ok=True)
+    except PermissionError:
+        pass  # Windows may still hold handle briefly
 
 
 def test_register_plugin(tmp_marketplace_db):

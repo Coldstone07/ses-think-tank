@@ -261,6 +261,7 @@ from platform_scale import (
     search_plugins, install_plugin, approve_plugin, rate_plugin,
     get_plugin_reviews, get_marketplace_stats,
 )
+from db import get_connection
 init_marketplace_schema()
 print("[platform] Platform & scale module loaded")
 
@@ -2106,7 +2107,7 @@ MEMORY_DB_PATH = BASE_DIR / "memory.db"
 
 def init_memory_db():
     """Initialize SQLite memory database schema."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS memory_sessions (
@@ -2157,12 +2158,11 @@ def init_memory_db():
         CREATE INDEX IF NOT EXISTS idx_cross_references_session ON cross_references(session_id);
     """)
     conn.commit()
-    conn.close()
 
 
 def populate_memory(session: ConversationSession):
     """Insert session record, pins, and persona interactions into memory."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
 
     persona_ids = ",".join(p["id"] for p in session.personas)
@@ -2259,7 +2259,6 @@ def populate_memory(session: ConversationSession):
             )
 
     conn.commit()
-    conn.close()
 
     # Phase 4.4: Extract insights from conversation
     try:
@@ -2306,7 +2305,7 @@ def populate_memory(session: ConversationSession):
 def search_memory_by_topic(topic: str, limit: int = 10) -> list:
     """Search past sessions by keyword overlap with topic."""
     query_words = set(t.lower() for t in topic.split() if len(t) > 2)
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """
@@ -2317,7 +2316,6 @@ def search_memory_by_topic(topic: str, limit: int = 10) -> list:
         (limit * 3,),
     )
     rows = cur.fetchall()
-    conn.close()
 
     scored = []
     for row in rows:
@@ -2347,7 +2345,7 @@ def search_memory_by_topic(topic: str, limit: int = 10) -> list:
 
 def search_memory_by_persona(persona_id: str, limit: int = 10) -> list:
     """Find sessions that used a specific persona."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """
@@ -2363,7 +2361,6 @@ def search_memory_by_persona(persona_id: str, limit: int = 10) -> list:
         (persona_id, limit),
     )
     rows = cur.fetchall()
-    conn.close()
     return [
         {
             "session_id": r[0],
@@ -2382,7 +2379,7 @@ def search_memory_by_persona(persona_id: str, limit: int = 10) -> list:
 
 def get_session_memory(session_id: str) -> Optional[dict]:
     """Get full session memory record including pins and interactions."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     cur.execute(
         """
@@ -2394,7 +2391,6 @@ def get_session_memory(session_id: str) -> Optional[dict]:
     )
     row = cur.fetchone()
     if not row:
-        conn.close()
         return None
 
     result = {
@@ -2444,7 +2440,6 @@ def get_session_memory(session_id: str) -> Optional[dict]:
         for r in cur.fetchall()
     ]
 
-    conn.close()
     return result
 
 
@@ -2455,7 +2450,7 @@ def get_cross_session_insights(topic: str) -> dict:
         return {"topic": topic, "session_count": 0, "insights": []}
 
     all_pins = []
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     for m in matches:
         cur.execute(
@@ -2474,7 +2469,6 @@ def get_cross_session_insights(topic: str) -> dict:
                     "status": r[3],
                 }
             )
-    conn.close()
 
     persona_freq: Dict[str, int] = Counter()
     for m in matches:
@@ -2499,7 +2493,7 @@ def recommend_team_from_memory(topic: str) -> dict:
         return {"recommended_personas": [], "reasoning": "No past sessions found"}
 
     persona_scores: Dict[str, dict] = {}
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection(str(MEMORY_DB_PATH))
     cur = conn.cursor()
     for m in matches:
         for pid in m["persona_ids"]:
@@ -2519,7 +2513,6 @@ def recommend_team_from_memory(topic: str) -> dict:
             row = cur.fetchone()
             if row:
                 persona_scores[pid]["turns_spoken"].append(row[0])
-    conn.close()
 
     scored = []
     for pid, stats in persona_scores.items():

@@ -654,10 +654,16 @@ function renderSessionHistory() {
   }).join('');
 }
 async function loadSession(sessionId) {
+  if (sessionId === currentSession) return;
   try {
     const resp = await fetch(`/api/sessions/${sessionId}/messages`);
     const messages = await resp.json();
+    // Clear chat and reset state
     document.getElementById('chatArea').innerHTML = '';
+    turnCount = 0; speakers = new Set();
+    document.getElementById('statTurns').textContent = '0';
+    document.getElementById('statSpeakers').textContent = '0';
+    // Load messages
     messages.forEach(msg => addMessage(msg));
     currentSession = sessionId;
     renderSessionHistory();

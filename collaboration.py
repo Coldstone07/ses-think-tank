@@ -7,10 +7,12 @@ import os
 import sqlite3
 import time
 import json
+import secrets
 import uuid
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
+from db import get_connection
 
 MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 
@@ -21,7 +23,7 @@ def _memory_db_path() -> Path:
 
 def init_collab_schema():
     """Create collaboration tables for forks, comparisons, and annotations."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS session_forks (
@@ -65,7 +67,6 @@ def init_collab_schema():
         CREATE INDEX IF NOT EXISTS idx_annotations_turn ON annotations(session_id, turn_number);
     """)
     conn.commit()
-    conn.close()
 
 
 # ─── FORK SESSIONS ──────────────────────────────────────────────────────────
@@ -73,7 +74,7 @@ def init_collab_schema():
 def fork_session(original_session_id: str, forked_by: str = "",
                  fork_point: int = 0) -> Optional[dict]:
     """Fork a session from a specific turn point."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -81,14 +82,13 @@ def fork_session(original_session_id: str, forked_by: str = "",
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (original_session_id,))
     original = cur.fetchone()
     if not original:
-        conn.close()
         return None
 
     original = dict(original)
 
     # Create forked session
-    forked_session_id = f"{original_session_id}_fork_{int(time.time() * 1000) % 1000000:06d}"
-    fork_id = f"fork_{int(time.time() * 1000) % 1000000000:09d}"
+    forked_session_id = f"{original_session_id}_fork_{secrets.token_urlsafe(6)}"
+    fork_id = f"fork_{secrets.token_urlsafe(8)}"
 
     cur.execute(
         """INSERT INTO memory_sessions (session_id, topic, persona_ids, started_at, turn_count)
@@ -131,7 +131,6 @@ def fork_session(original_session_id: str, forked_by: str = "",
     )
 
     conn.commit()
-    conn.close()
 
     return {
         "fork_id": fork_id,
@@ -145,7 +144,7 @@ def fork_session(original_session_id: str, forked_by: str = "",
 
 def get_forks(original_session_id: str) -> List[dict]:
     """Get all forks of a session."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -153,14 +152,13 @@ def get_forks(original_session_id: str) -> List[dict]:
         (original_session_id,)
     )
     rows = cur.fetchall()
-    conn.close()
 
     return [dict(row) for row in rows]
 
 
 def get_fork_history(forked_session_id: str) -> Optional[dict]:
     """Get the fork history for a session."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -168,7 +166,6 @@ def get_fork_history(forked_session_id: str) -> Optional[dict]:
         (forked_session_id,)
     )
     row = cur.fetchone()
-    conn.close()
 
     if not row:
         return None
@@ -180,7 +177,7 @@ def get_fork_history(forked_session_id: str) -> Optional[dict]:
 def create_comparison(session_a_id: str, session_b_id: str,
                        created_by: str = "") -> Optional[dict]:
     """Create a side-by-side comparison of two sessions."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -189,17 +186,15 @@ def create_comparison(session_a_id: str, session_b_id: str,
                 (session_a_id, session_b_id))
     sessions = cur.fetchall()
     if len(sessions) != 2:
-        conn.close()
         return None
 
-    comparison_id = f"cmp_{int(time.time() * 1000) % 1000000000:09d}"
+    comparison_id = f"cmp_{secrets.token_urlsafe(8)}"
     cur.execute(
         """INSERT INTO session_comparisons (comparison_id, session_a_id, session_b_id, created_by)
            VALUES (?, ?, ?, ?)""",
         (comparison_id, session_a_id, session_b_id, created_by)
     )
     conn.commit()
-    conn.close()
 
     session_a = dict(sessions[0])
     session_b = dict(sessions[1])
@@ -214,14 +209,13 @@ def create_comparison(session_a_id: str, session_b_id: str,
 
 def get_comparison(comparison_id: str) -> Optional[dict]:
     """Get a comparison with full session details."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
     cur.execute("SELECT * FROM session_comparisons WHERE comparison_id = ?", (comparison_id,))
     comp = cur.fetchone()
     if not comp:
-        conn.close()
         return None
 
     comp = dict(comp)
@@ -234,7 +228,6 @@ def get_comparison(comparison_id: str) -> Optional[dict]:
     scores_a = _get_session_scores(conn, comp["session_a_id"])
     scores_b = _get_session_scores(conn, comp["session_b_id"])
 
-    conn.close()
 
     return {
         "comparison_id": comparison_id,
@@ -289,16 +282,15 @@ def _get_session_scores(conn, session_id: str) -> Dict[str, float]:
 def create_annotation(session_id: str, turn_number: int, content: str,
                        user_id: str = "", annotation_type: str = "comment") -> Optional[dict]:
     """Add an annotation/comment to a specific turn in a session."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
 
     # Verify session exists
     cur.execute("SELECT session_id FROM memory_sessions WHERE session_id = ?", (session_id,))
     if not cur.fetchone():
-        conn.close()
         return None
 
-    annotation_id = f"ann_{int(time.time() * 1000) % 1000000000:09d}"
+    annotation_id = f"ann_{secrets.token_urlsafe(8)}"
     cur.execute(
         """INSERT INTO annotations (annotation_id, session_id, turn_number, user_id,
                                      content, annotation_type)
@@ -306,7 +298,6 @@ def create_annotation(session_id: str, turn_number: int, content: str,
         (annotation_id, session_id, turn_number, user_id, content, annotation_type)
     )
     conn.commit()
-    conn.close()
 
     return {
         "annotation_id": annotation_id,
@@ -320,7 +311,7 @@ def create_annotation(session_id: str, turn_number: int, content: str,
 
 def get_annotations(session_id: str, turn_number: int = None) -> List[dict]:
     """Get annotations for a session, optionally filtered by turn."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -336,14 +327,13 @@ def get_annotations(session_id: str, turn_number: int = None) -> List[dict]:
         )
 
     rows = cur.fetchall()
-    conn.close()
 
     return [dict(row) for row in rows]
 
 
 def update_annotation(annotation_id: str, content: str) -> bool:
     """Update an annotation's content."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         "UPDATE annotations SET content = ?, updated_at = julianday('now') WHERE annotation_id = ?",
@@ -351,24 +341,22 @@ def update_annotation(annotation_id: str, content: str) -> bool:
     )
     updated = cur.rowcount > 0
     conn.commit()
-    conn.close()
     return updated
 
 
 def delete_annotation(annotation_id: str) -> bool:
     """Delete an annotation."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute("DELETE FROM annotations WHERE annotation_id = ?", (annotation_id,))
     deleted = cur.rowcount > 0
     conn.commit()
-    conn.close()
     return deleted
 
 
 def get_annotation_summary(session_id: str) -> Dict:
     """Get annotation summary for a session."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -382,7 +370,6 @@ def get_annotation_summary(session_id: str) -> Dict:
         (session_id,)
     )
     row = cur.fetchone()
-    conn.close()
 
     return {
         "session_id": session_id,

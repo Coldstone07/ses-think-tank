@@ -13,8 +13,11 @@ import hashlib
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict, Tuple
+from db import get_connection
 
-MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
+def _memory_db_path():
+    """Resolve memory DB path dynamically (respects SES_MEMORY_DB env var)."""
+    return Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
 
 
 def _memory_db_path() -> Path:
@@ -23,7 +26,7 @@ def _memory_db_path() -> Path:
 
 def init_intelligence_schema():
     """Create intelligence tables for embeddings and synthesis."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS session_embeddings (
@@ -85,7 +88,6 @@ def init_intelligence_schema():
         CREATE INDEX IF NOT EXISTS idx_quality_week ON quality_trends(week);
     """)
     conn.commit()
-    conn.close()
 
 
 # ─── EMBEDDING GENERATION (TF-IDF style, no external deps) ──────────────────
@@ -144,7 +146,7 @@ def cosine_similarity(vec1: Dict[str, float], vec2: Dict[str, float]) -> float:
 
 def generate_session_embedding(session_id: str, content: str, chunk_type: str = "summary"):
     """Generate and store an embedding for a session chunk."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
 
     # Get vocabulary from all existing content
@@ -177,12 +179,11 @@ def generate_session_embedding(session_id: str, content: str, chunk_type: str = 
         )
 
     conn.commit()
-    conn.close()
 
 
 def generate_session_embeddings(session_id: str):
     """Generate embeddings for a session's summary and key messages."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -190,7 +191,6 @@ def generate_session_embeddings(session_id: str):
     cur.execute("SELECT topic FROM memory_sessions WHERE session_id = ?", (session_id,))
     session = cur.fetchone()
     if not session:
-        conn.close()
         return
 
     # Embed topic
@@ -202,7 +202,6 @@ def generate_session_embeddings(session_id: str):
         (session_id,)
     )
     messages = cur.fetchall()
-    conn.close()
 
     # Embed first few messages as summaries
     for i, msg in enumerate(messages[:5]):
@@ -217,7 +216,7 @@ def generate_session_embeddings(session_id: str):
 
 def semantic_search(query: str, limit: int = 10, min_score: float = 0.1) -> List[Dict]:
     """Search sessions semantically using TF-IDF vectors."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -228,7 +227,6 @@ def semantic_search(query: str, limit: int = 10, min_score: float = 0.1) -> List
     # Compute query vector
     query_vector = compute_tfidf_vector(query, vocabulary)
     if not query_vector:
-        conn.close()
         return []
 
     # Get all sessions with their content
@@ -264,7 +262,6 @@ def semantic_search(query: str, limit: int = 10, min_score: float = 0.1) -> List
                     "score": round(score, 4),
                 })
 
-    conn.close()
 
     # Sort by score descending
     results.sort(key=lambda x: x["score"], reverse=True)
@@ -275,7 +272,7 @@ def semantic_search(query: str, limit: int = 10, min_score: float = 0.1) -> List
 
 def synthesize_across_sessions(topics: List[str], max_sessions: int = 10) -> Dict:
     """Synthesize insights across multiple sessions on related topics."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -291,7 +288,6 @@ def synthesize_across_sessions(topics: List[str], max_sessions: int = 10) -> Dic
                 session_ids.append(row["session_id"])
 
     if not session_ids:
-        conn.close()
         return {"topic": " | ".join(topics), "sessions_found": 0, "synthesis": "No related sessions found."}
 
     # Get insights from these sessions
@@ -320,7 +316,6 @@ def synthesize_across_sessions(topics: List[str], max_sessions: int = 10) -> Dic
         except Exception:
             pass
 
-    conn.close()
 
     # Generate synthesis (simple aggregation for now)
     synthesis_parts = []
@@ -342,7 +337,7 @@ def synthesize_across_sessions(topics: List[str], max_sessions: int = 10) -> Dic
     synthesis = "\n".join(synthesis_parts)
 
     # Store synthesis
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO cross_session_synthesis (topic, session_ids, synthesis, confidence)
@@ -350,7 +345,6 @@ def synthesize_across_sessions(topics: List[str], max_sessions: int = 10) -> Dic
         (" | ".join(topics), json.dumps(session_ids), synthesis, 0.7)
     )
     conn.commit()
-    conn.close()
 
     return {
         "topic": " | ".join(topics),
@@ -365,7 +359,7 @@ def synthesize_across_sessions(topics: List[str], max_sessions: int = 10) -> Dic
 
 def generate_knowledge_from_sessions(persona_id: str, domain: str = "general") -> List[Dict]:
     """Generate knowledge entries for a persona from their session history."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -399,10 +393,9 @@ def generate_knowledge_from_sessions(persona_id: str, domain: str = "general") -
                 "topic": session["topic"],
             })
 
-    conn.close()
 
     # Store in auto_knowledge table
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     for entry in knowledge_entries:
         cur.execute(
@@ -412,14 +405,13 @@ def generate_knowledge_from_sessions(persona_id: str, domain: str = "general") -
              json.dumps([entry["source_session"]]), 0.6)
         )
     conn.commit()
-    conn.close()
 
     return knowledge_entries
 
 
 def get_persona_knowledge(persona_id: str, domain: str = None) -> List[Dict]:
     """Get all auto-generated knowledge for a persona."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -435,7 +427,6 @@ def get_persona_knowledge(persona_id: str, domain: str = None) -> List[Dict]:
         )
 
     rows = cur.fetchall()
-    conn.close()
 
     result = []
     for row in rows:
@@ -449,7 +440,7 @@ def get_persona_knowledge(persona_id: str, domain: str = None) -> List[Dict]:
 
 def compute_quality_trend(session_id: str) -> Dict:
     """Compute quality metrics for a session and track over time."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -457,7 +448,6 @@ def compute_quality_trend(session_id: str) -> Dict:
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (session_id,))
     session = cur.fetchone()
     if not session:
-        conn.close()
         return {}
 
     # Get messages
@@ -490,13 +480,12 @@ def compute_quality_trend(session_id: str) -> Dict:
     except Exception:
         pass
 
-    conn.close()
 
     # Compute week identifier
     week = datetime.fromtimestamp(session["started_at"]).strftime("%Y-W%W")
 
     # Store trend data
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     cur = conn.cursor()
     cur.execute(
         """INSERT INTO quality_trends (session_id, week, social_score, emotional_score, spiritual_score, avg_turn_length)
@@ -504,7 +493,6 @@ def compute_quality_trend(session_id: str) -> Dict:
         (session_id, week, social_score, emotional_score, spiritual_score, avg_turn_length)
     )
     conn.commit()
-    conn.close()
 
     return {
         "session_id": session_id,
@@ -518,7 +506,7 @@ def compute_quality_trend(session_id: str) -> Dict:
 
 def get_quality_overview(weeks: int = 12) -> List[Dict]:
     """Get quality trends overview for the last N weeks."""
-    conn = sqlite3.connect(str(_memory_db_path()))
+    conn = get_connection(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -537,7 +525,6 @@ def get_quality_overview(weeks: int = 12) -> List[Dict]:
     )
 
     rows = cur.fetchall()
-    conn.close()
 
     result = []
     for row in rows:

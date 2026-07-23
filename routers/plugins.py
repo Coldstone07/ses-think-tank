@@ -2,11 +2,11 @@
 from fastapi import APIRouter, Request, Request as FastAPIRequest, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from app import (
-    BASE_DIR, resolve_personas, reload_plugins,
-    get_plugin_personas, add_plugin_persona, delete_plugin_persona,
-    check_plugins_need_reload, reload_tools, get_tools,
-    register_tool, delete_tool, get_knowledge,
+from app import BASE_DIR, resolve_personas, log, PERSONA_NAMES
+from plugins import plugin_store, tool_store, PERSONA_REQUIRED, validate_tool
+from plugins import (
+    list_personas_with_knowledge, load_knowledge, add_memory,
+    extract_memories_from_conversation,
 )
 
 router = APIRouter()

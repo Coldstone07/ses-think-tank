@@ -1456,13 +1456,105 @@ Be honest — if the conversation is circling, repeating, or has covered the top
 
 
 def extract_from_reasoning(reasoning: str) -> str:
-    """Extract the actual response from Qwen 3.6 chain-of-thought."""
-    # Strategy 0: Look for explicit response separator (most reliable)
+    """Extract the actual response from Qwen 3.6 chain-of-thought.
+
+    The model outputs structured planning like:
+      1. Analyze...
+      2. Identify...
+      3. Brainstorming...
+      4. Draft Construction / Mental Refinement: <actual dialogue>
+      5. Check Against Constraints...
+
+    We want ONLY the dialogue prose from draft/construction sections.
+    """
+    # Strategy 0: Explicit separator (most reliable)
     sep = reasoning.rfind("---RESPONSE---")
     if sep != -1:
-        return reasoning[sep + len("---RESPONSE---") :].strip()
+        return reasoning[sep + len("---RESPONSE---"):].strip()
 
-    # Strategy 1: Extract draft paragraphs
+    # Strategy 1: Find draft/construction sections and extract prose after them
+    # These contain the actual dialogue the persona would speak
+    draft_markers = [
+        "Draft Construction",
+        "Mental Refinement",
+        "Writing the Response",
+        "Drafting:",
+        "Final Draft",
+        "Response Draft",
+    ]
+
+    for marker in draft_markers:
+        idx = reasoning.lower().find(marker.lower())
+        if idx != -1:
+            # Get everything after this marker
+            draft_section = reasoning[idx:]
+            # Split into lines first to skip the header line
+            lines = draft_section.split("\n")
+            # Skip the first line (the marker/header itself)
+            content_lines = []
+            for i, line in enumerate(lines):
+                if i == 0:
+                    continue  # Skip the marker line
+                content_lines.append(line)
+            draft_text = "\n".join(content_lines)
+            # Split into paragraphs
+            paragraphs = draft_text.split("\n\n")
+            dialogue_parts = []
+            for p in paragraphs:
+                p_stripped = p.strip()
+                # Skip the marker line itself and meta-commentary
+                if not p_stripped:
+                    continue
+                # Skip numbered planning steps
+                if re.match(r"\d+\.\s*", p_stripped):
+                    continue
+                # Strip paragraph headers like "Paragraph 1: Acknowledge & Deepen..."
+                p_stripped = re.sub(r"^Paragraph\s*\d+[:\s]+", "", p_stripped, count=1, flags=re.IGNORECASE)
+                # Strip subtitle headers (short title-case lines before prose)
+                # e.g., "Acknowledge & Deepen (Bridge Rook & Sage, complete my thought)"
+                # These are typically <100 chars, title-case, no sentence-ending punctuation
+                lines = p_stripped.split("\n")
+                if len(lines) >= 2:
+                    first = lines[0].strip()
+                    # If first line is short, title-case-ish, and no period/question/exclamation at end
+                    if len(first) < 100 and not first.endswith((".", "!", "?")) and not first.startswith(("I ", "We ", "The ", "It ", "He ", "She ", "They ", "You ", "Jax ", "Kael ", "Sage ", "Elena ", "Rook ")):
+                        p_stripped = "\n".join(lines[1:]).strip()
+                # Skip constraint checks
+                if any(
+                    kw in p_stripped.lower()
+                    for kw in [
+                        "check against",
+                        "constraints",
+                        "all constraints",
+                        "ready.",
+                    ]
+                ):
+                    continue
+                # Skip brainstorming/planning headers
+                if any(
+                    kw in p_stripped.lower()
+                    for kw in [
+                        "brainstorming",
+                        "analyze",
+                        "identify",
+                        "deconstruct",
+                        "formulate",
+                    ]
+                ):
+                    continue
+                # Skip lines that are just headers (short, end with colon)
+                if len(p_stripped) < 80 and p_stripped.rstrip().endswith(":"):
+                    continue
+                # This looks like actual dialogue prose
+                if len(p_stripped) > 50:
+                    dialogue_parts.append(p_stripped)
+
+            if dialogue_parts:
+                result = "\n\n".join(dialogue_parts)
+                if len(result) > 50:
+                    return result.strip()
+
+    # Strategy 2: Extract draft paragraphs (legacy patterns)
     draft_sections = re.findall(
         r"(?:Draft\s*[-:]?\s*(?:Paragraph\s*\d+\s*[-:]?)?\s*\n?\s*)(.+?)(?=\n\s*\d+\.\s*(?:\*|\w)|\n\s*\*\*Check|\n\s*\*\*Refine|\n\s*All constraints|Ready\.\s*$)",
         reasoning,
@@ -1473,7 +1565,7 @@ def extract_from_reasoning(reasoning: str) -> str:
         if len(result) > 50:
             return result.strip()
 
-    # Strategy 2: Extract inline draft paragraphs
+    # Strategy 3: Extract inline draft paragraphs
     inline_drafts = re.findall(
         r"\*?Para\s*\d+\s*:\s*(.+?)\n\s*\*?(?:Para|\d+\.\s*\*\*Check|\*\*Refine|All constraints)",
         reasoning,
@@ -1484,82 +1576,63 @@ def extract_from_reasoning(reasoning: str) -> str:
         if len(result) > 50:
             return result.strip()
 
-    # Strategy 3: Look for substantial paragraphs between "Draft" and "Check"
-    draft_idx = reasoning.find("Draft")
-    check_idx = reasoning.rfind("Check")
-    if draft_idx != -1 and check_idx != -1 and check_idx > draft_idx:
-        draft_section = reasoning[draft_idx:check_idx]
-        lines = draft_section.split("\n")
-        content_lines = []
-        skip_patterns = [
-            r"(?:Draft|Paragraph)\s*[-:]",
-            r"\d+\.\s*\*\*",
-            r"\d+\.\s*Analyze",
-            r"\d+\.\s*Deconstruct",
-            r"\d+\.\s*Identify",
-            r"\d+\.\s*Check",
-            r"\d+\.\s*Refine",
-            r"\d+\.\s*Format",
-            r"\d+\.\s*Tone",
-        ]
-        for line in lines:
-            s = line.strip()
-            if s and not any(re.match(p, s, re.IGNORECASE) for p in skip_patterns):
-                content_lines.append(line)
-        result = "\n".join(content_lines).strip()
-        if len(result) > 50:
-            return result
-
-    # Strategy 4: Filter out internal monologue patterns
-    # If the text contains "Actually, let's", "Wait,", "Hmm,", "How about", "Let me",
-    # it's likely still thinking. Try to find the first substantial paragraph AFTER these.
-    monologue_markers = [
-        "actually, let's",
-        "wait,",
-        "hmm,",
-        "how about",
-        "let me think",
-        "let's go with",
-        "let's stick to",
-        "actually,",
-        "no,",
-        "yes, but",
+    # Strategy 4: Filter out ALL meta-commentary and return remaining prose
+    lines = reasoning.split("\n")
+    content_lines = []
+    skip_patterns = [
+        r"\d+\.\s*\*\*",  # Numbered bold items
+        r"\d+\.\s*Analyze",
+        r"\d+\.\s*Deconstruct",
+        r"\d+\.\s*Identify",
+        r"\d+\.\s*Check",
+        r"\d+\.\s*Refine",
+        r"\d+\.\s*Format",
+        r"\d+\.\s*Tone",
+        r"\d+\.\s*Brainstorm",
+        r"\d+\.\s*Draft",
+        r"\d+\.\s*Writing",
+        r"\d+\.\s*Formulate",
+        r"\d+\.\s*Acknowledge",
+        r"\d+\.\s*Introduce",
+        r"\d+\.\s*Integrate",
+        r"\d+\.\s*Ground",
+        r"\*\*Check",
+        r"\*\*Refine",
+        r"\*\*Final",
+        r"Check Against",
+        r"All constraints",
+        r"Ready\.",
+        r"Brainstorming",
+        r"Mental Refinement",
+        r"Draft Construction",
+        r"Writing the Response",
+        r"Internal Monologue",
+        r"Simulation",
     ]
-    is_monologue = any(marker in reasoning.lower() for marker in monologue_markers)
-    if is_monologue:
-        # Try to find content after the last monologue marker
-        last_marker = 0
-        for marker in monologue_markers:
-            idx = reasoning.lower().rfind(marker)
-            if idx > last_marker:
-                last_marker = idx
-        # Look for substantial content after the last marker
-        after_marker = reasoning[last_marker:]
-        paragraphs = after_marker.split("\n\n")
-        for p in paragraphs:
-            p = p.strip()
-            if len(p) > 100 and not any(m in p.lower() for m in monologue_markers):
-                return p
+    in_content = False
+    for line in lines:
+        s = line.strip()
+        if not s:
+            continue
+        # Check if this line is meta-commentary
+        if any(re.match(p, s, re.IGNORECASE) for p in skip_patterns):
+            in_content = False
+            continue
+        # Check if this looks like a planning header (short, ends with colon)
+        if len(s) < 60 and s.rstrip().endswith(":"):
+            in_content = True
+            continue
+        # If we're past headers and it's substantial prose, keep it
+        if len(s) > 50 and not re.match(r"\d+\.\s", s):
+            content_lines.append(s)
+            in_content = True
 
-    # Strategy 5: Last substantial block that's not analysis
-    paragraphs = reasoning.split("\n\n")
-    for p in reversed(paragraphs):
-        p = p.strip()
-        if len(p) > 100:
-            if not p.startswith(
-                (
-                    "**Check",
-                    "**Refine",
-                    "**Final",
-                    "Here's a thinking",
-                    "1.  **Analyze",
-                    "1. **Analyze",
-                    "1.**Analyze",
-                )
-            ):
-                if not re.match(r"\d+\.\s*\*\*", p):
-                    return p
+    if content_lines:
+        result = "\n\n".join(content_lines)
+        if len(result) > 50:
+            return result.strip()
 
+    # Fallback: return last 300 chars (last resort)
     return reasoning[-300:].strip()
 
 

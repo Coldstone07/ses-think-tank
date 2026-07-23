@@ -1,12 +1,12 @@
 """Router: Platform, Marketplace, Settings."""
-from fastapi import APIRouter, Request, Request as FastAPIRequest, Depends, HTTPException
+from fastapi import APIRouter, Request, Request as FastAPIRequest, Depends, HTTPException, WebSocket
 from fastapi.responses import JSONResponse
 
 from app import (
     ConversationSession, Message, WhiteboardPin, InterventionRecord,
     active_connections, active_sessions, asdict, pin_asdict,
     broadcast_to_all, broadcast_whiteboard, calculate_synergy_metrics,
-    classify_domain, extract_conversation_state, get_session,
+    classify_domain, extract_conversation_state,
     get_memory_suggestions, resolve_personas, resolve_workflows,
     run_conversation, save_session_to_disk, web_search,
     update_and_emit_metrics, SESSIONS_DIR, ITEMS_DIR,

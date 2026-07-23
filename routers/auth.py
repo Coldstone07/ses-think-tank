@@ -2,11 +2,18 @@
 from fastapi import APIRouter, Request, Request as FastAPIRequest, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from auth import get_current_user
-from export import (
-    export_session_json, export_session_md, export_sessions_list,
-    publish_session, unpublish_session,
+from auth import (
+    get_current_user, register_user, create_access_token, create_refresh_token,
+    authenticate_user, verify_refresh_token, get_user_by_id, get_quota_status,
+    get_user_shares, create_session_share, revoke_session_share, get_shared_session,
 )
+from export import (
+    export_session_markdown, publish_session, unpublish_session,
+    generate_rss_feed, export_all_sessions_markdown,
+)
+from db import get_connection
+import sqlite3
+import os
 
 router = APIRouter()
 
@@ -95,7 +102,8 @@ async def view_shared_session_api(share_id: str):
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
     # Load session from memory DB
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    from db import _memory_db_path
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (share["session_id"],))
@@ -103,7 +111,6 @@ async def view_shared_session_api(share_id: str):
     if session:
         cur.execute("SELECT * FROM memory_messages WHERE session_id = ? ORDER BY turn_number", (share["session_id"],))
         messages = [dict(row) for row in cur.fetchall()]
-        conn.close()
         return {
             "session_id": session["session_id"],
             "topic": session["topic"],
@@ -114,7 +121,6 @@ async def view_shared_session_api(share_id: str):
             "messages": messages,
             "shared_by": share["owner_id"],
         }
-    conn.close()
     raise HTTPException(status_code=404, detail="Session not found")
 
 
@@ -133,20 +139,18 @@ async def export_session_md(session_id: str, current_user: dict = Depends(get_cu
 @router.get("/api/sessions/{session_id}/export/json")
 async def export_session_json(session_id: str, current_user: dict = Depends(get_current_user)):
     """Export a session as JSON (full data including insights/evals)."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = get_connection()
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (session_id,))
     session = cur.fetchone()
     if not session:
-        conn.close()
         raise HTTPException(status_code=404, detail="Session not found")
     cur.execute(
         "SELECT * FROM memory_messages WHERE session_id = ? ORDER BY turn_number",
         (session_id,)
     )
     messages = [dict(row) for row in cur.fetchall()]
-    conn.close()
     return {
         "session_id": session["session_id"],
         "topic": session["topic"],

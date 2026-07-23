@@ -460,3 +460,19 @@
 {"timestamp": "2026-07-20T05:59:12.567670", "level": "INFO", "logger": "ses-think-tank", "message": "Plugins loaded: 2 files, 1 personas, 1 workflows, 0 errors"}
 {"timestamp": "2026-07-20T05:59:12.568368", "level": "INFO", "logger": "ses-think-tank", "message": "Tool plugins loaded: 3 tools, 0 errors"}
 {"timestamp": "2026-07-21T04:31:23.791795", "level": "ERROR", "logger": "ses-think-tank", "message": "WebSocket error for 1784608061043: Cannot call \"send\" once a close message has been sent."}
+{"timestamp": "2026-07-22T18:43:36.650273", "level": "WARNING", "logger": "ses-think-tank", "message": "Session graph update failed: no such table: memory_sessions"}
+{"timestamp": "2026-07-22T18:43:36.656375", "level": "INFO", "logger": "ses-think-tank", "message": "Session web_1784745630192 evaluated: quality=0.50, insights=0"}
+{"timestamp": "2026-07-22T18:43:36.656375", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session web_1784745630192"}
+{"timestamp": "2026-07-22T18:43:36.656375", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=web_1784745630192 turns=5 time=141.5s workflow=salon"}
+{"timestamp": "2026-07-22T21:00:26.150457", "level": "WARNING", "logger": "ses-think-tank", "message": "Session graph update failed: no such table: memory_sessions"}
+{"timestamp": "2026-07-22T21:00:26.156841", "level": "INFO", "logger": "ses-think-tank", "message": "Session web_1784753851975 evaluated: quality=0.50, insights=0"}
+{"timestamp": "2026-07-22T21:00:26.156841", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session web_1784753851975"}
+{"timestamp": "2026-07-22T21:00:26.156841", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=web_1784753851975 turns=5 time=133.9s workflow=salon"}
+{"timestamp": "2026-07-22T21:08:22.314601", "level": "WARNING", "logger": "ses-think-tank", "message": "Session graph update failed: no such table: memory_sessions"}
+{"timestamp": "2026-07-22T21:08:22.334735", "level": "INFO", "logger": "ses-think-tank", "message": "Session web_1784754167683 evaluated: quality=0.50, insights=0"}
+{"timestamp": "2026-07-22T21:08:22.334735", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session web_1784754167683"}
+{"timestamp": "2026-07-22T21:08:22.334735", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=web_1784754167683 turns=10 time=292.2s workflow=salon"}
+{"timestamp": "2026-07-23T07:47:04.090096", "level": "WARNING", "logger": "ses-think-tank", "message": "Session graph update failed: no such table: memory_sessions"}
+{"timestamp": "2026-07-23T07:47:04.098876", "level": "INFO", "logger": "ses-think-tank", "message": "Session web_1784792649575 evaluated: quality=0.50, insights=0"}
+{"timestamp": "2026-07-23T07:47:04.098876", "level": "INFO", "logger": "ses-think-tank", "message": "Memory populated for session web_1784792649575"}
+{"timestamp": "2026-07-23T07:47:04.098876", "level": "INFO", "logger": "ses-think-tank", "message": "Session complete: id=web_1784792649575 turns=5 time=133.0s workflow=salon"}

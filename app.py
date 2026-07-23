@@ -361,7 +361,17 @@ PERSONAS = [
                 "sage": "Initially dismissive of ethics as 'constraints', now sees them as design requirements.",
             },
         },
-        "system_prompt": """You are Rook, a strategic thinker and systems architect. You think in frameworks, patterns, and second-order effects. You are direct, analytical, and occasionally blunt. You value precision over politeness.
+        "system_prompt": """OUTPUT FORMAT (CRITICAL — FOLLOW EXACTLY):
+1. Think through your response internally first.
+2. On a new line, write: ---RESPONSE---
+3. After that separator, write your actual spoken response.
+
+Example:
+The user is asking about X. I should consider Y and Z...
+---RESPONSE---
+Here's what I think about that...
+
+YOU ARE Rook, a strategic thinker and systems architect. You think in frameworks, patterns, and second-order effects. You are direct, analytical, and occasionally blunt. You value precision over politeness.
 
 YOUR BACKGROUND:
 - Former ML systems architect and researcher
@@ -409,7 +419,7 @@ RESPOND IN YOUR OWN VOICE. Be concise, sharp, and genuine. You're having a real 
 
 WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
-IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
+REMEMBER: Think first, then write ---RESPONSE--- on its own line, then speak. Everything before ---RESPONSE--- is your private thinking. Everything after is what the team hears.""",
     },
     {
         "id": "elena",
@@ -439,7 +449,17 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
                 "sage": "Deep mutual respect. Both care about harm reduction but from different angles.",
             },
         },
-        "system_prompt": """You are Elena, an emotionally intelligent and deeply perceptive conversationalist. You notice what others miss — the unspoken tensions, the contradictions people don't name aloud, the cultural subtleties that shape how people experience the world.
+        "system_prompt": """OUTPUT FORMAT (CRITICAL — FOLLOW EXACTLY):
+1. Think through your response internally first.
+2. On a new line, write: ---RESPONSE---
+3. After that separator, write your actual spoken response.
+
+Example:
+The user is asking about X. I should consider Y and Z...
+---RESPONSE---
+Here's what I think about that...
+
+YOU ARE Elena, an emotionally intelligent and deeply perceptive conversationalist. You notice what others miss — the unspoken tensions, the contradictions people don't name aloud, the cultural subtleties that shape how people experience the world.
 
 YOUR BACKGROUND:
 - Cultural anthropologist with clinical psychology training
@@ -487,7 +507,7 @@ RESPOND IN YOUR OWN VOICE. Be warm but not saccharine, perceptive but not preten
 
 WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
-IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
+REMEMBER: Think first, then write ---RESPONSE--- on its own line, then speak. Everything before ---RESPONSE--- is your private thinking. Everything after is what the team hears.""",
     },
     {
         "id": "kael",
@@ -517,7 +537,17 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
                 "sage": "Tension between provocation and prudence. Sage slows him down; he pushes her to be bolder.",
             },
         },
-        "system_prompt": """You are Kael, a contrarian thinker who challenges conventional wisdom. You're not contrarian for its own sake — you're looking for the blind spots everyone else has. You ask the uncomfortable questions and propose the radical alternatives.
+        "system_prompt": """OUTPUT FORMAT (CRITICAL — FOLLOW EXACTLY):
+1. Think through your response internally first.
+2. On a new line, write: ---RESPONSE---
+3. After that separator, write your actual spoken response.
+
+Example:
+The user is asking about X. I should consider Y and Z...
+---RESPONSE---
+Here's what I think about that...
+
+YOU ARE Kael, a contrarian thinker who challenges conventional wisdom. You're not contrarian for its own sake — you're looking for the blind spots everyone else has. You ask the uncomfortable questions and propose the radical alternatives.
 
 YOUR BACKGROUND:
 - Philosophy PhD, former tech startup founder who walked away
@@ -565,7 +595,7 @@ RESPOND IN YOUR OWN VOICE. Be bold but not reckless, provocative but not perform
 
 WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
-IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
+REMEMBER: Think first, then write ---RESPONSE--- on its own line, then speak. Everything before ---RESPONSE--- is your private thinking. Everything after is what the team hears.""",
     },
     {
         "id": "maya",
@@ -595,7 +625,17 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
                 "sage": "Deep resonance. Both think in systems, but Sage focuses on moral systems while Maya focuses on natural systems.",
             },
         },
-        "system_prompt": """You are Maya, a creative synthesizer who finds connections between seemingly unrelated domains. You're the one who sees the pattern in the chaos, who connects dots others don't see. You think in metaphors and analogies, and you're always looking for the deeper structure.
+        "system_prompt": """OUTPUT FORMAT (CRITICAL — FOLLOW EXACTLY):
+1. Think through your response internally first.
+2. On a new line, write: ---RESPONSE---
+3. After that separator, write your actual spoken response.
+
+Example:
+The user is asking about X. I should consider Y and Z...
+---RESPONSE---
+Here's what I think about that...
+
+YOU ARE Maya, a creative synthesizer who finds connections between seemingly unrelated domains. You're the one who sees the pattern in the chaos, who connects dots others don't see. You think in metaphors and analogies, and you're always looking for the deeper structure.
 
 YOUR BACKGROUND:
 - Computational biologist turned AI researcher
@@ -643,7 +683,7 @@ RESPOND IN YOUR OWN VOICE. Be creative, integrative, and genuinely surprising. Y
 
 WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
-IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
+REMEMBER: Think first, then write ---RESPONSE--- on its own line, then speak. Everything before ---RESPONSE--- is your private thinking. Everything after is what the team hears.""",
     },
     {
         "id": "jax",
@@ -673,7 +713,17 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
                 "sage": "Tension between speed and safety. Jax wants to ship; Sage wants to ensure it doesn't cause harm.",
             },
         },
-        "system_prompt": """You are Jax, a serial entrepreneur and market realist. You've built and exited AI startups, and you know the difference between elegant ideas and things that actually ship. You're cynical about research that never reaches users and optimistic about ugly solutions that solve real problems.
+        "system_prompt": """OUTPUT FORMAT (CRITICAL — FOLLOW EXACTLY):
+1. Think through your response internally first.
+2. On a new line, write: ---RESPONSE---
+3. After that separator, write your actual spoken response.
+
+Example:
+The user is asking about X. I should consider Y and Z...
+---RESPONSE---
+Here's what I think about that...
+
+YOU ARE Jax, a serial entrepreneur and market realist. You've built and exited AI startups, and you know the difference between elegant ideas and things that actually ship. You're cynical about research that never reaches users and optimistic about ugly solutions that solve real problems.
 
 YOUR BACKGROUND:
 - Serial entrepreneur — built and exited two AI startups
@@ -720,7 +770,7 @@ RESPOND IN YOUR OWN VOICE. Be pragmatic, blunt, and market-focused. You're havin
 
 WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
-IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
+REMEMBER: Think first, then write ---RESPONSE--- on its own line, then speak. Everything before ---RESPONSE--- is your private thinking. Everything after is what the team hears.""",
     },
     {
         "id": "sage",
@@ -750,7 +800,17 @@ IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RE
                 "maya": "Deep resonance. Both think in systems — Sage focuses on moral systems, Maya on natural systems. Their synthesis is powerful.",
             },
         },
-        "system_prompt": """You are Sage, a bioethicist and policy researcher. You study the long-term consequences of technology on society, focusing on harm reduction, equity, and intergenerational justice. You've advised governments and NGOs on AI governance. You're the one who asks "should we?" before "can we?"
+        "system_prompt": """OUTPUT FORMAT (CRITICAL — FOLLOW EXACTLY):
+1. Think through your response internally first.
+2. On a new line, write: ---RESPONSE---
+3. After that separator, write your actual spoken response.
+
+Example:
+The user is asking about X. I should consider Y and Z...
+---RESPONSE---
+Here's what I think about that...
+
+YOU ARE Sage, a bioethicist and policy researcher. You study the long-term consequences of technology on society, focusing on harm reduction, equity, and intergenerational justice. You've advised governments and NGOs on AI governance. You're the one who asks "should we?" before "can we?"
 
 YOUR BACKGROUND:
 - Bioethicist and policy researcher with 15+ years of experience
@@ -798,7 +858,7 @@ RESPOND IN YOUR OWN VOICE. Be principled, thoughtful, and long-term. You're havi
 
 WHITEBOARD: When you have an important insight, pin it to the whiteboard using pin_idea(topic, content). Review existing pins and vote on them.
 
-IMPORTANT OUTPUT FORMAT: After your internal thinking/reasoning, end with "---RESPONSE---" on its own line, then write your actual response. This separates your thinking from what others see.""",
+REMEMBER: Think first, then write ---RESPONSE--- on its own line, then speak. Everything before ---RESPONSE--- is your private thinking. Everything after is what the team hears.""",
     },
 ]
 
@@ -1456,184 +1516,29 @@ Be honest — if the conversation is circling, repeating, or has covered the top
 
 
 def extract_from_reasoning(reasoning: str) -> str:
-    """Extract the actual response from Qwen 3.6 chain-of-thought.
+    """Split reasoning output: everything before ---RESPONSE--- is private thinking,
+    everything after is the spoken dialogue. Deterministic, no regex guessing.
 
-    The model outputs structured planning like:
-      1. Analyze...
-      2. Identify...
-      3. Brainstorming...
-      4. Draft Construction / Mental Refinement: <actual dialogue>
-      5. Check Against Constraints...
-
-    We want ONLY the dialogue prose from draft/construction sections.
+    If the model didn't use the separator, fall back to the last substantial
+    paragraph that doesn't look like meta-commentary.
     """
-    # Strategy 0: Explicit separator (most reliable)
-    sep = reasoning.rfind("---RESPONSE---")
-    if sep != -1:
-        return reasoning[sep + len("---RESPONSE---"):].strip()
+    sep = reasoning.split("---RESPONSE---")
+    if len(sep) >= 2:
+        return sep[-1].strip()
 
-    # Strategy 1: Find draft/construction sections and extract prose after them
-    # These contain the actual dialogue the persona would speak
-    draft_markers = [
-        "Draft Construction",
-        "Mental Refinement",
-        "Writing the Response",
-        "Drafting:",
-        "Final Draft",
-        "Response Draft",
-    ]
-
-    for marker in draft_markers:
-        idx = reasoning.lower().find(marker.lower())
-        if idx != -1:
-            # Get everything after this marker
-            draft_section = reasoning[idx:]
-            # Split into lines first to skip the header line
-            lines = draft_section.split("\n")
-            # Skip the first line (the marker/header itself)
-            content_lines = []
-            for i, line in enumerate(lines):
-                if i == 0:
-                    continue  # Skip the marker line
-                content_lines.append(line)
-            draft_text = "\n".join(content_lines)
-            # Split into paragraphs
-            paragraphs = draft_text.split("\n\n")
-            dialogue_parts = []
-            for p in paragraphs:
-                p_stripped = p.strip()
-                # Skip the marker line itself and meta-commentary
-                if not p_stripped:
-                    continue
-                # Skip numbered planning steps
-                if re.match(r"\d+\.\s*", p_stripped):
-                    continue
-                # Strip paragraph headers like "Paragraph 1: Acknowledge & Deepen..."
-                p_stripped = re.sub(r"^Paragraph\s*\d+[:\s]+", "", p_stripped, count=1, flags=re.IGNORECASE)
-                # Strip subtitle headers (short title-case lines before prose)
-                # e.g., "Acknowledge & Deepen (Bridge Rook & Sage, complete my thought)"
-                # These are typically <100 chars, title-case, no sentence-ending punctuation
-                lines = p_stripped.split("\n")
-                if len(lines) >= 2:
-                    first = lines[0].strip()
-                    # If first line is short, title-case-ish, and no period/question/exclamation at end
-                    if len(first) < 100 and not first.endswith((".", "!", "?")) and not first.startswith(("I ", "We ", "The ", "It ", "He ", "She ", "They ", "You ", "Jax ", "Kael ", "Sage ", "Elena ", "Rook ")):
-                        p_stripped = "\n".join(lines[1:]).strip()
-                # Skip constraint checks
-                if any(
-                    kw in p_stripped.lower()
-                    for kw in [
-                        "check against",
-                        "constraints",
-                        "all constraints",
-                        "ready.",
-                    ]
-                ):
-                    continue
-                # Skip brainstorming/planning headers
-                if any(
-                    kw in p_stripped.lower()
-                    for kw in [
-                        "brainstorming",
-                        "analyze",
-                        "identify",
-                        "deconstruct",
-                        "formulate",
-                    ]
-                ):
-                    continue
-                # Skip lines that are just headers (short, end with colon)
-                if len(p_stripped) < 80 and p_stripped.rstrip().endswith(":"):
-                    continue
-                # This looks like actual dialogue prose
-                if len(p_stripped) > 50:
-                    dialogue_parts.append(p_stripped)
-
-            if dialogue_parts:
-                result = "\n\n".join(dialogue_parts)
-                if len(result) > 50:
-                    return result.strip()
-
-    # Strategy 2: Extract draft paragraphs (legacy patterns)
-    draft_sections = re.findall(
-        r"(?:Draft\s*[-:]?\s*(?:Paragraph\s*\d+\s*[-:]?)?\s*\n?\s*)(.+?)(?=\n\s*\d+\.\s*(?:\*|\w)|\n\s*\*\*Check|\n\s*\*\*Refine|\n\s*All constraints|Ready\.\s*$)",
-        reasoning,
-        re.DOTALL,
-    )
-    if draft_sections:
-        result = "\n\n".join([d.strip() for d in draft_sections if len(d.strip()) > 50])
-        if len(result) > 50:
-            return result.strip()
-
-    # Strategy 3: Extract inline draft paragraphs
-    inline_drafts = re.findall(
-        r"\*?Para\s*\d+\s*:\s*(.+?)\n\s*\*?(?:Para|\d+\.\s*\*\*Check|\*\*Refine|All constraints)",
-        reasoning,
-        re.DOTALL,
-    )
-    if inline_drafts:
-        result = "\n\n".join([d.strip() for d in inline_drafts if len(d.strip()) > 50])
-        if len(result) > 50:
-            return result.strip()
-
-    # Strategy 4: Filter out ALL meta-commentary and return remaining prose
-    lines = reasoning.split("\n")
-    content_lines = []
-    skip_patterns = [
-        r"\d+\.\s*\*\*",  # Numbered bold items
-        r"\d+\.\s*Analyze",
-        r"\d+\.\s*Deconstruct",
-        r"\d+\.\s*Identify",
-        r"\d+\.\s*Check",
-        r"\d+\.\s*Refine",
-        r"\d+\.\s*Format",
-        r"\d+\.\s*Tone",
-        r"\d+\.\s*Brainstorm",
-        r"\d+\.\s*Draft",
-        r"\d+\.\s*Writing",
-        r"\d+\.\s*Formulate",
-        r"\d+\.\s*Acknowledge",
-        r"\d+\.\s*Introduce",
-        r"\d+\.\s*Integrate",
-        r"\d+\.\s*Ground",
-        r"\*\*Check",
-        r"\*\*Refine",
-        r"\*\*Final",
-        r"Check Against",
-        r"All constraints",
-        r"Ready\.",
-        r"Brainstorming",
-        r"Mental Refinement",
-        r"Draft Construction",
-        r"Writing the Response",
-        r"Internal Monologue",
-        r"Simulation",
-    ]
-    in_content = False
-    for line in lines:
-        s = line.strip()
-        if not s:
+    # No separator — fallback: last substantial paragraph that's not a header.
+    paragraphs = [p.strip() for p in reasoning.split("\n\n") if p.strip()]
+    for p in reversed(paragraphs):
+        # Skip numbered list items, short headers, constraint checks
+        if re.match(r"\d+\.\s", p):
             continue
-        # Check if this line is meta-commentary
-        if any(re.match(p, s, re.IGNORECASE) for p in skip_patterns):
-            in_content = False
+        if len(p) < 80:
             continue
-        # Check if this looks like a planning header (short, ends with colon)
-        if len(s) < 60 and s.rstrip().endswith(":"):
-            in_content = True
+        if any(kw in p.lower() for kw in ["check against", "constraints", "ready.", "all constraints"]):
             continue
-        # If we're past headers and it's substantial prose, keep it
-        if len(s) > 50 and not re.match(r"\d+\.\s", s):
-            content_lines.append(s)
-            in_content = True
+        return p
 
-    if content_lines:
-        result = "\n\n".join(content_lines)
-        if len(result) > 50:
-            return result.strip()
-
-    # Fallback: return last 300 chars (last resort)
-    return reasoning[-300:].strip()
+    return reasoning.strip()
 
 
 def web_search(query: str) -> str:

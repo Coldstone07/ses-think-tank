@@ -1,8 +1,48 @@
 """Router: Session Intelligence, Eval Dashboard, Evolution, Deeper Intelligence."""
-from fastapi import APIRouter, Request, Request as FastAPIRequest, Depends, HTTPException
+
+import sqlite3
+from pathlib import Path
+from fastapi import (
+    APIRouter,
+    Request,
+    Request as FastAPIRequest,
+    Depends,
+    HTTPException,
+)
 from fastapi.responses import JSONResponse
 
 from auth import get_current_user
+from db import get_connection
+from session_intelligence import (
+    get_insight_summary,
+    get_session_insights,
+    get_related_sessions,
+    smart_recall,
+    extract_insights_from_session,
+    save_insights,
+    build_session_graph,
+    _memory_db_path,
+)
+from evaluation_dashboard import (
+    get_dashboard_summary,
+    get_session_analytics,
+    get_persona_trends,
+    get_quality_trend,
+    export_session_report,
+)
+from persona_evolution import (
+    get_evolution_summary,
+    get_persona_profile,
+)
+from intelligence import (
+    semantic_search,
+    synthesize_across_sessions,
+    generate_session_embeddings,
+    get_persona_knowledge,
+    generate_knowledge_from_sessions,
+    get_quality_overview,
+    compute_quality_trend,
+)
 
 router = APIRouter()
 
@@ -18,17 +58,16 @@ async def get_insights_api(session_id: str = None, limit: int = 20):
     """Get insights, optionally filtered by session."""
     if session_id:
         return get_session_insights(session_id)
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
         """SELECT i.*, ms.topic as session_topic
            FROM insights i JOIN memory_sessions ms ON ms.session_id = i.session_id
            ORDER BY i.relevance_score DESC, ms.started_at DESC LIMIT ?""",
-        (limit,)
+        (limit,),
     )
     results = [dict(row) for row in cur.fetchall()]
-    conn.close()
     return results
 
 
@@ -123,7 +162,9 @@ async def synthesize_api(request: Request):
 
 
 @router.post("/api/intelligence/embed/{session_id}")
-async def embed_session_api(session_id: str, current_user: dict = Depends(get_current_user)):
+async def embed_session_api(
+    session_id: str, current_user: dict = Depends(get_current_user)
+):
     """Generate embeddings for a session."""
     generate_session_embeddings(session_id)
     return {"status": "ok", "session_id": session_id}
@@ -137,10 +178,18 @@ async def persona_knowledge_api(persona_id: str, domain: str = None):
 
 
 @router.post("/api/intelligence/knowledge/{persona_id}/generate")
-async def generate_knowledge_api(persona_id: str, domain: str = "general", current_user: dict = Depends(get_current_user)):
+async def generate_knowledge_api(
+    persona_id: str,
+    domain: str = "general",
+    current_user: dict = Depends(get_current_user),
+):
     """Generate knowledge for a persona from session history."""
     entries = generate_knowledge_from_sessions(persona_id, domain)
-    return {"persona_id": persona_id, "domain": domain, "entries_generated": len(entries)}
+    return {
+        "persona_id": persona_id,
+        "domain": domain,
+        "entries_generated": len(entries),
+    }
 
 
 @router.get("/api/intelligence/quality/overview")
@@ -151,8 +200,9 @@ async def quality_overview_api(weeks: int = 12):
 
 
 @router.post("/api/intelligence/quality/{session_id}")
-async def compute_quality_api(session_id: str, current_user: dict = Depends(get_current_user)):
+async def compute_quality_api(
+    session_id: str, current_user: dict = Depends(get_current_user)
+):
     """Compute and store quality metrics for a session."""
     metrics = compute_quality_trend(session_id)
     return metrics
-

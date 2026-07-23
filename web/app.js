@@ -148,7 +148,7 @@ function addMessage(msg) {
     thinkingHtml = `<details class="msg-thinking"><summary class="thinking-toggle">💭 Thinking</summary><div class="thinking-content">${renderMarkdown(msg.reasoning)}</div></details>`;
   }
 
-  div.innerHTML = `<div class="msg-avatar" style="background:${msg.color}22;border-color:${msg.color}44;">${msg.icon}</div><div><div class="msg-bubble">${content}</div>${thinkingHtml}${toolBadges?`<div class="msg-tools">${toolBadges}</div>`:''}<div class="msg-meta"><span style="color:${msg.color};font-weight:600;">${msg.persona_name}</span>${msg.phase?`<span class="msg-phase-tag">${msg.phase}</span>`:''}<span>${timeAgo(msg.timestamp*1000)}</span><button class="msg-action-btn" onclick="copyMessage(this.closest('.message').querySelector('.msg-bubble').textContent)">📋 Copy</button></div></div>`;
+  div.innerHTML = `<div class="msg-avatar" style="background:${msg.color}22;border-color:${msg.color}44;">${msg.icon}</div><div><div class="msg-bubble">${content}</div>${thinkingHtml}${toolBadges?`<div class="msg-tools">${toolBadges}</div>`:''}<div class="msg-meta"><span style="color:${msg.color};font-weight:600;">${escapeHtml(msg.persona_name)}</span>${msg.phase?`<span class="msg-phase-tag">${escapeHtml(msg.phase)}</span>`:''}<span>${timeAgo(msg.timestamp*1000)}</span><button class="msg-action-btn" onclick="copyMessage(this.closest('.message').querySelector('.msg-bubble').textContent)">📋 Copy</button></div></div>`;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -156,7 +156,7 @@ function addToolUseIndicator(data) {
   const toast = document.createElement('div');
   toast.className = 'tool-toast';
   const isError = !!data.error;
-  toast.innerHTML = `<span>${data.icon||'🔧'}</span><strong>${data.persona_name}</strong> used <code style="color:${isError?'#fca5a5':'#a5b4fc'}">${data.tool}</code> ${isError?`<span style="color:#fca5a5">⚠️ ${data.error}</span>`:`<span style="color:var(--text-dim)">→ ${data.result||'done'}</span>`}`;
+  toast.innerHTML = `<span>${escapeHtml(data.icon||'🔧')}</span><strong>${escapeHtml(data.persona_name)}</strong> used <code style="color:${isError?'#fca5a5':'#a5b4fc'}">${escapeHtml(data.tool)}</code> ${isError?`<span style="color:#fca5a5">⚠️ ${escapeHtml(data.error)}</span>`:`<span style="color:var(--text-dim)">→ ${escapeHtml(data.result||'done')}</span>`}`;
   document.body.appendChild(toast);
   setTimeout(() => toast.remove(), 4000);
 }

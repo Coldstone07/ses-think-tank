@@ -120,7 +120,12 @@ def execute_tool(name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
             }
 
         duration_ms = int((time.time() - start) * 1000)
-        return {"name": name, "result": result, "error": None, "duration_ms": duration_ms}
+        return {
+            "name": name,
+            "result": result,
+            "error": None,
+            "duration_ms": duration_ms,
+        }
 
     except Exception as e:
         duration_ms = int((time.time() - start) * 1000)
@@ -179,9 +184,7 @@ def _web_search(query: str) -> str:
                 elif self.capture_text:
                     pass  # keep capturing
 
-                self.capture_text = (
-                    self.in_title_a or self.in_url_a or self.in_snippet
-                )
+                self.capture_text = self.in_title_a or self.in_url_a or self.in_snippet
 
             def handle_data(self, data):
                 if self.capture_text:
@@ -247,10 +250,16 @@ def _web_search(query: str) -> str:
                 lines = [f"Wikipedia results for: {query}\n"]
                 for i, s in enumerate(searches, 1):
                     lines.append(f"{i}. {s.get('title', '')}")
-                    snippet = s.get("snippet", "").replace("<span class='searchmatch'>", "").replace("</span>", "")
+                    snippet = (
+                        s.get("snippet", "")
+                        .replace("<span class='searchmatch'>", "")
+                        .replace("</span>", "")
+                    )
                     if snippet:
                         lines.append(f"   {snippet}")
-                    lines.append(f"   URL: https://en.wikipedia.org/wiki/{s.get('title', '').replace(' ', '_')}")
+                    lines.append(
+                        f"   URL: https://en.wikipedia.org/wiki/{s.get('title', '').replace(' ', '_')}"
+                    )
                     lines.append("")
                 return "\n".join(lines)
         except Exception:
@@ -260,45 +269,34 @@ def _web_search(query: str) -> str:
 
 def _execute_code(code: str, timeout: int = 30) -> str:
     """Execute Python code in a subprocess with timeout and resource limits."""
-    timeout = min(max(timeout, 1), 60)  # Clamp between 1-60 seconds
+    timeout = min(max(timeout, 1), 60)
 
-    # Security: block dangerous imports/patterns
-    dangerous_patterns = [
-        r"\bos\.system\b",
-        r"\bimport\s+subprocess\b",
-        r"\bos\.popen\b",
-        r"\b__import__\s*\(",
-        r"\bopen\s*\(",
-        r"\bexec\s*\(",
-        r"\beval\s*\(",
-        r"\bcompile\s*\(",
-        r"\bimportlib\b",
-        r"\bsocket\b",
-        r"\bhttp\.client\b",
-        r"\burllib\.request\b",
-        r"\brequests\.",
-        r"\bshutil\.",
-        r"\btempfile\b",
-    ]
-
-    for pattern in dangerous_patterns:
-        if re.search(pattern, code):
-            return f"BLOCKED: Code contains potentially unsafe operation ({pattern}). " \
-                   "Only pure computation, data analysis, and standard library (math, collections, itertools, json, re, datetime, statistics) are allowed."
-
-    # Wrap code to capture output
+    # Whitelist approach: restrict builtins to safe set
     wrapped = textwrap.dedent(f"""
-    import sys
-    import io
-    import traceback
+    import sys, io, traceback
 
-    # Capture stdout
+    safe_builtins = {{
+        'print': print, 'len': len, 'str': str, 'int': int, 'float': float,
+        'list': list, 'dict': dict, 'tuple': tuple, 'set': set, 'bool': bool,
+        'range': range, 'enumerate': enumerate, 'zip': zip, 'map': map,
+        'filter': filter, 'sorted': sorted, 'reversed': reversed,
+        'any': any, 'all': all, 'sum': sum, 'min': min, 'max': max,
+        'abs': abs, 'round': round,
+        'True': True, 'False': False, 'None': None,
+        'Exception': Exception, 'ValueError': ValueError, 'TypeError': TypeError,
+        'KeyError': KeyError, 'IndexError': IndexError,
+        'RuntimeError': RuntimeError,
+        'AttributeError': AttributeError, 'NameError': NameError, 'OSError': OSError,
+    }}
+
+    user_code = {code!r}
+
     output = io.StringIO()
     sys.stdout = output
 
     try:
-        {code}
-    except Exception as e:
+        exec(user_code, {{'__builtins__': safe_builtins}})
+    except Exception:
         sys.stdout = sys.__stdout__
         output.write("ERROR: " + traceback.format_exc())
     finally:
@@ -347,26 +345,30 @@ def _read_file(filepath: str) -> str:
         resolved = path.resolve()
         # Allow workspace and project root
         if not (
-            str(resolved).startswith(str(WORKSPACE_DIR.resolve()))
-            or str(resolved).startswith(str(project_root))
+            resolved.is_relative_to(WORKSPACE_DIR.resolve())
+            or resolved.is_relative_to(project_root)
         ):
-            return f"ACCESS DENIED: Path '{filepath}' is outside allowed directories.\n" \
-                   f"Allowed: {WORKSPACE_DIR}/ and {project_root}/"
+            return (
+                f"ACCESS DENIED: Path '{filepath}' is outside allowed directories.\n"
+                f"Allowed: {WORKSPACE_DIR}/ and {project_root}/"
+            )
     except Exception:
         return f"ACCESS DENIED: Could not resolve path '{filepath}'"
 
-    if not path.exists():
+    if not resolved.exists():
         return f"FILE NOT FOUND: {filepath}"
 
-    if not path.is_file():
+    if not resolved.is_file():
         return f"NOT A FILE: {filepath} is a directory"
 
     # Check file size (max 1MB)
-    if path.stat().st_size > 1_000_000:
-        return f"FILE TOO LARGE: {filepath} is {path.stat().st_size} bytes (max 1MB)"
+    if resolved.stat().st_size > 1_000_000:
+        return (
+            f"FILE TOO LARGE: {filepath} is {resolved.stat().st_size} bytes (max 1MB)"
+        )
 
     try:
-        content = path.read_text(encoding="utf-8")
+        content = resolved.read_text(encoding="utf-8")
         # Truncate very long files
         if len(content) > 50_000:
             content = content[:50_000] + "\n\n... [file truncated, >50K chars]"
@@ -396,7 +398,11 @@ def extract_tool_calls(response: dict) -> List[Dict[str, Any]]:
             except json.JSONDecodeError:
                 args = {}
             result.append(
-                {"id": tc.get("id", ""), "name": func.get("name", ""), "arguments": args}
+                {
+                    "id": tc.get("id", ""),
+                    "name": func.get("name", ""),
+                    "arguments": args,
+                }
             )
         return result
 
@@ -410,11 +416,17 @@ def extract_tool_calls(response: dict) -> List[Dict[str, Any]]:
                 func = tc.get("function", {})
                 args_raw = func.get("arguments", "{}")
                 try:
-                    args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                    args = (
+                        json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                    )
                 except json.JSONDecodeError:
                     args = {}
                 result.append(
-                    {"id": tc.get("id", ""), "name": func.get("name", ""), "arguments": args}
+                    {
+                        "id": tc.get("id", ""),
+                        "name": func.get("name", ""),
+                        "arguments": args,
+                    }
                 )
             return result
 
@@ -442,17 +454,27 @@ def extract_tool_calls_from_text(text: str) -> List[Dict[str, Any]]:
         # Parse keyword arguments from the string
         args = {}
         # Match key="value" or key='value'
-        for kv_match in re.finditer(r'(\w+)\s*=\s*["\']((?:[^"\\]|\\.)*)["\']', args_str):
+        for kv_match in re.finditer(
+            r'(\w+)\s*=\s*["\']((?:[^"\\]|\\.)*)["\']', args_str
+        ):
             args[kv_match.group(1)] = kv_match.group(2)
 
         # Handle multiline code blocks
         if func_name == "execute_code" and "code" not in args:
-            code_match = re.search(r'```(?:python)?\s*\n(.*?)\n```', args_str, re.DOTALL)
+            code_match = re.search(
+                r"```(?:python)?\s*\n(.*?)\n```", args_str, re.DOTALL
+            )
             if code_match:
                 args["code"] = code_match.group(1).strip()
 
         if args:
-            calls.append({"id": f"text_call_{func_name}_{len(calls)}", "name": func_name, "arguments": args})
+            calls.append(
+                {
+                    "id": f"text_call_{func_name}_{len(calls)}",
+                    "name": func_name,
+                    "arguments": args,
+                }
+            )
 
     return calls
 
@@ -483,7 +505,9 @@ def build_tool_messages(
     tool_name: str, tool_result: str, tool_error: str | None, tool_call_id: str = ""
 ) -> Dict[str, Any]:
     """Build a tool response message for the LLM conversation."""
-    content = tool_result if not tool_error else f"ERROR: {tool_error}\nResult: {tool_result}"
+    content = (
+        tool_result if not tool_error else f"ERROR: {tool_error}\nResult: {tool_result}"
+    )
     return {
         "role": "tool",
         "tool_call_id": tool_call_id or f"call_{tool_name}_{int(time.time())}",

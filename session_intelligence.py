@@ -15,7 +15,16 @@ from pathlib import Path
 from typing import Optional
 from collections import Counter
 
-MEMORY_DB_PATH = Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
+def _memory_db_path():
+    return Path(os.environ.get("SES_MEMORY_DB", "data/memory.db"))
+
+# Backward compat — always returns current env value
+class _MemoryDBPath:
+    def __str__(self):
+        return str(_memory_db_path())
+    def __fspath__(self):
+        return str(_memory_db_path())
+MEMORY_DB_PATH = _MemoryDBPath()
 
 # Keyword stop words for insight extraction
 STOP_WORDS = {
@@ -37,7 +46,7 @@ STOP_WORDS = {
 
 def init_intelligence_schema():
     """Add intelligence tables to the existing memory DB."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     cur = conn.cursor()
     cur.executescript("""
         CREATE TABLE IF NOT EXISTS insights (
@@ -163,7 +172,7 @@ def extract_insights_from_session(session_id: str, messages: list) -> list:
 
 def save_insights(session_id: str, insights: list):
     """Save extracted insights to the database."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     cur = conn.cursor()
     for ins in insights:
         cur.execute(
@@ -179,7 +188,7 @@ def build_session_graph(top_n: int = 50):
     Build/update the session graph by computing pairwise similarity
     between recent sessions. Links sessions with similarity > 0.15.
     """
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     cur = conn.cursor()
 
     # Get recent sessions
@@ -217,7 +226,7 @@ def build_session_graph(top_n: int = 50):
                 })
 
     # Upsert into DB
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     cur = conn.cursor()
     for c in connections:
         cur.execute(
@@ -233,7 +242,7 @@ def build_session_graph(top_n: int = 50):
 
 def get_related_sessions(session_id: str, limit: int = 5) -> list:
     """Get sessions most related to the given session."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -259,7 +268,7 @@ def smart_recall(topic: str, persona_ids: list = None, limit: int = 5) -> list:
     Find relevant past insights for a new conversation topic.
     Returns insights ranked by relevance to the current topic.
     """
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 
@@ -298,7 +307,7 @@ def smart_recall(topic: str, persona_ids: list = None, limit: int = 5) -> list:
 
 def get_session_insights(session_id: str) -> list:
     """Get all insights for a specific session."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute(
@@ -312,7 +321,7 @@ def get_session_insights(session_id: str) -> list:
 
 def get_insight_summary() -> dict:
     """Get summary stats about the intelligence system."""
-    conn = sqlite3.connect(str(MEMORY_DB_PATH))
+    conn = sqlite3.connect(str(_memory_db_path()))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
 

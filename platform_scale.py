@@ -389,7 +389,7 @@ def search_plugins(query: str, limit: int = 20) -> List[dict]:
     cur = conn.cursor()
     cur.execute(
         """SELECT * FROM plugin_registry
-           WHERE name LIKE ? OR description LIKE ?
+           WHERE (name LIKE ? OR description LIKE ?)
            AND approved = 1
            ORDER BY rating DESC LIMIT ?""",
         (f"%{query}%", f"%{query}%", limit)

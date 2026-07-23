@@ -1,26 +1,74 @@
 """Router: Platform, Marketplace, Settings."""
-from fastapi import APIRouter, Request, Request as FastAPIRequest, Depends, HTTPException, WebSocket
+
+import asyncio
+import json
+import time
+import uuid
+import yaml
+from fastapi import (
+    APIRouter,
+    Request,
+    Request as FastAPIRequest,
+    Depends,
+    HTTPException,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import JSONResponse
 
 from app import (
-    ConversationSession, Message, WhiteboardPin, InterventionRecord,
-    active_connections, active_sessions, asdict, pin_asdict,
-    broadcast_to_all, broadcast_whiteboard, calculate_synergy_metrics,
-    classify_domain, extract_conversation_state,
-    get_memory_suggestions, resolve_personas, resolve_workflows,
-    run_conversation, save_session_to_disk, web_search,
-    update_and_emit_metrics, SESSIONS_DIR, ITEMS_DIR,
+    app,
+    log,
+    ConversationSession,
+    Message,
+    WhiteboardPin,
+    InterventionRecord,
+    active_connections,
+    active_sessions,
+    asdict,
+    pin_asdict,
+    broadcast_to_all,
+    broadcast_whiteboard,
+    calculate_synergy_metrics,
+    classify_domain,
+    extract_conversation_state,
+    get_memory_suggestions,
+    resolve_personas,
+    resolve_workflows,
+    run_conversation,
+    save_session_to_disk,
+    web_search,
+    update_and_emit_metrics,
+    SESSIONS_DIR,
+    ITEMS_DIR,
 )
-from auth import get_current_user
+from auth import get_current_user, require_admin
 from platform_scale import (
-    register_plugin, install_plugin, approve_plugin, rate_plugin,
-    get_plugin_reviews, get_marketplace_stats,
+    metrics,
+    logger,
+    register_plugin,
+    list_plugins,
+    search_plugins,
+    get_plugin,
+    install_plugin,
+    approve_plugin,
+    rate_plugin,
+    get_plugin_reviews,
+    get_marketplace_stats,
 )
 from settings import (
-    set_default_provider, get_all_provider_configs, save_provider_config,
-    get_default_provider, get_available_providers, get_available_integrations,
-    get_all_settings, get_api_keys_list, save_api_key, delete_api_key,
-    get_provider_env, get_environment_keys,
+    set_default_provider,
+    get_all_provider_configs,
+    save_provider_config,
+    get_default_provider,
+    get_available_providers,
+    get_available_integrations,
+    get_all_settings,
+    get_api_keys_list,
+    save_api_key,
+    delete_api_key,
+    get_provider_env,
+    get_environment_keys,
 )
 
 router = APIRouter()
@@ -66,7 +114,9 @@ async def routes_api():
 
 
 @router.post("/api/marketplace/plugins")
-async def register_plugin_api(request: Request, current_user: dict = Depends(get_current_user)):
+async def register_plugin_api(
+    request: Request, current_user: dict = Depends(get_current_user)
+):
     body = await request.json()
     plugin = register_plugin(
         name=body.get("name", ""),
@@ -81,7 +131,9 @@ async def register_plugin_api(request: Request, current_user: dict = Depends(get
 
 
 @router.get("/api/marketplace/plugins")
-async def list_plugins_api(category: str = None, approved_only: bool = True, limit: int = 50):
+async def list_plugins_api(
+    category: str = None, approved_only: bool = True, limit: int = 50
+):
     return list_plugins(category=category, approved_only=approved_only, limit=limit)
 
 
@@ -107,7 +159,7 @@ async def install_plugin_api(plugin_id: str):
 
 
 @router.post("/api/marketplace/plugins/{plugin_id}/approve")
-async def approve_plugin_api(plugin_id: str, current_user: dict = Depends(get_current_user)):
+async def approve_plugin_api(plugin_id: str, admin: dict = Depends(require_admin)):
     approved = approve_plugin(plugin_id)
     if not approved:
         raise HTTPException(status_code=404, detail="Plugin not found")
@@ -115,7 +167,9 @@ async def approve_plugin_api(plugin_id: str, current_user: dict = Depends(get_cu
 
 
 @router.post("/api/marketplace/plugins/{plugin_id}/rate")
-async def rate_plugin_api(plugin_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+async def rate_plugin_api(
+    plugin_id: str, request: Request, current_user: dict = Depends(get_current_user)
+):
     body = await request.json()
     result = rate_plugin(
         plugin_id=plugin_id,
@@ -167,7 +221,9 @@ async def settings_config_api():
 async def settings_save_provider_api(provider_name: str, request: FastAPIRequest):
     """Save provider configuration."""
     body = await request.json()
-    save_provider_config("default", provider_name, body.get("config", {}), body.get("enabled", True))
+    save_provider_config(
+        "default", provider_name, body.get("config", {}), body.get("enabled", True)
+    )
     if body.get("set_default"):
         set_default_provider("default", provider_name)
     return {"status": "ok", "provider": provider_name}
@@ -189,7 +245,7 @@ async def settings_save_api_key_api(request: FastAPIRequest):
         body["provider"],
         body["key_name"],
         body["key_value"],
-        body.get("label", "")
+        body.get("label", ""),
     )
     return {"status": "ok"}
 
@@ -208,7 +264,7 @@ async def settings_provider_env_api():
 
 
 @router.get("/api/sessions/{session_id}")
-async def get_session(session_id: str):
+async def get_session(session_id: str, current_user: dict = Depends(get_current_user)):
     session = active_sessions.get(session_id)
     if not session:
         return {"error": "Session not found"}
@@ -229,7 +285,9 @@ async def get_session(session_id: str):
 
 
 @router.delete("/api/sessions/{session_id}")
-async def delete_session(session_id: str):
+async def delete_session(
+    session_id: str, current_user: dict = Depends(get_current_user)
+):
     session = active_sessions.pop(session_id, None)
     if not session:
         return {"error": "Session not found"}
@@ -363,6 +421,7 @@ async def get_conversation_state(session_id: str):
     session = active_sessions.get(session_id)
     if not session:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Session not found")
     if session.conversation_state:
         return session.conversation_state
@@ -375,12 +434,19 @@ async def get_interventions(session_id: str):
     session = active_sessions.get(session_id)
     if not session:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Session not found")
     return {
         "session_id": session_id,
         "is_paused": session.is_paused,
         "interventions": [
-            {"id": r.id, "mode": r.mode, "message": r.message, "target": r.target, "timestamp": r.timestamp}
+            {
+                "id": r.id,
+                "mode": r.mode,
+                "message": r.message,
+                "target": r.target,
+                "timestamp": r.timestamp,
+            }
             for r in session.interventions
         ],
         "total_interventions": len(session.interventions),
@@ -388,9 +454,14 @@ async def get_interventions(session_id: str):
 
 
 @router.post("/api/sessions/{session_id}/intervene")
-async def intervene_session(session_id: str, request: FastAPIRequest):
+async def intervene_session(
+    session_id: str,
+    request: FastAPIRequest,
+    current_user: dict = Depends(get_current_user),
+):
     """Human-in-the-Loop v2: structured intervention with modes."""
     from fastapi import HTTPException
+
     session = active_sessions.get(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -406,28 +477,48 @@ async def intervene_session(session_id: str, request: FastAPIRequest):
     if mode == "pause":
         session.is_paused = True
         record = InterventionRecord(
-            id=str(uuid.uuid4())[:8], mode=mode, message=message,
-            target=target, timestamp=time.time(),
+            id=str(uuid.uuid4())[:8],
+            mode=mode,
+            message=message,
+            target=target,
+            timestamp=time.time(),
         )
         session.interventions.append(record)
-        await broadcast_to_all("intervention", {
-            "type": "intervention", "mode": mode, "message": message,
-            "target": target, "id": record.id, "timestamp": record.timestamp,
-            "session_id": session_id,
-        })
+        await broadcast_to_all(
+            "intervention",
+            {
+                "type": "intervention",
+                "mode": mode,
+                "message": message,
+                "target": target,
+                "id": record.id,
+                "timestamp": record.timestamp,
+                "session_id": session_id,
+            },
+        )
         return {"status": "paused", "mode": mode, "intervention_id": record.id}
     if mode == "resume":
         session.is_paused = False
         record = InterventionRecord(
-            id=str(uuid.uuid4())[:8], mode=mode, message=message,
-            target=target, timestamp=time.time(),
+            id=str(uuid.uuid4())[:8],
+            mode=mode,
+            message=message,
+            target=target,
+            timestamp=time.time(),
         )
         session.interventions.append(record)
-        await broadcast_to_all("intervention", {
-            "type": "intervention", "mode": mode, "message": message,
-            "target": target, "id": record.id, "timestamp": record.timestamp,
-            "session_id": session_id,
-        })
+        await broadcast_to_all(
+            "intervention",
+            {
+                "type": "intervention",
+                "mode": mode,
+                "message": message,
+                "target": target,
+                "id": record.id,
+                "timestamp": record.timestamp,
+                "session_id": session_id,
+            },
+        )
         return {"status": "resumed", "mode": mode, "intervention_id": record.id}
 
     # Mode-specific prompt templates
@@ -450,8 +541,11 @@ async def intervene_session(session_id: str, request: FastAPIRequest):
     session.messages.append(intervention_msg)
     session.turn_count += 1
     record = InterventionRecord(
-        id=str(uuid.uuid4())[:8], mode=mode, message=message,
-        target=target, timestamp=time.time(),
+        id=str(uuid.uuid4())[:8],
+        mode=mode,
+        message=message,
+        target=target,
+        timestamp=time.time(),
     )
     session.interventions.append(record)
     await update_and_emit_metrics(None, session)
@@ -459,11 +553,18 @@ async def intervene_session(session_id: str, request: FastAPIRequest):
 
     # Broadcast to all connected clients
     await broadcast_to_all("message", {"message": asdict(intervention_msg)})
-    await broadcast_to_all("intervention", {
-        "type": "intervention", "mode": mode, "message": message,
-        "target": target, "id": record.id, "timestamp": record.timestamp,
-        "session_id": session_id,
-    })
+    await broadcast_to_all(
+        "intervention",
+        {
+            "type": "intervention",
+            "mode": mode,
+            "message": message,
+            "target": target,
+            "id": record.id,
+            "timestamp": record.timestamp,
+            "session_id": session_id,
+        },
+    )
 
     return {
         "status": "intervened",
@@ -690,28 +791,48 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         if mode == "pause":
                             ws_session.is_paused = True
                             record = InterventionRecord(
-                                id=str(uuid.uuid4())[:8], mode=mode, message=intervention_text,
-                                target=target, timestamp=time.time(),
+                                id=str(uuid.uuid4())[:8],
+                                mode=mode,
+                                message=intervention_text,
+                                target=target,
+                                timestamp=time.time(),
                             )
                             ws_session.interventions.append(record)
-                            await broadcast_to_all("intervention", {
-                                "type": "intervention", "mode": mode, "message": intervention_text,
-                                "target": target, "id": record.id, "timestamp": record.timestamp,
-                                "session_id": ws_session_id,
-                            })
+                            await broadcast_to_all(
+                                "intervention",
+                                {
+                                    "type": "intervention",
+                                    "mode": mode,
+                                    "message": intervention_text,
+                                    "target": target,
+                                    "id": record.id,
+                                    "timestamp": record.timestamp,
+                                    "session_id": ws_session_id,
+                                },
+                            )
                             continue
                         if mode == "resume":
                             ws_session.is_paused = False
                             record = InterventionRecord(
-                                id=str(uuid.uuid4())[:8], mode=mode, message=intervention_text,
-                                target=target, timestamp=time.time(),
+                                id=str(uuid.uuid4())[:8],
+                                mode=mode,
+                                message=intervention_text,
+                                target=target,
+                                timestamp=time.time(),
                             )
                             ws_session.interventions.append(record)
-                            await broadcast_to_all("intervention", {
-                                "type": "intervention", "mode": mode, "message": intervention_text,
-                                "target": target, "id": record.id, "timestamp": record.timestamp,
-                                "session_id": ws_session_id,
-                            })
+                            await broadcast_to_all(
+                                "intervention",
+                                {
+                                    "type": "intervention",
+                                    "mode": mode,
+                                    "message": intervention_text,
+                                    "target": target,
+                                    "id": record.id,
+                                    "timestamp": record.timestamp,
+                                    "session_id": ws_session_id,
+                                },
+                            )
                             continue
                         # Mode-specific content
                         mode_prompts = {
@@ -719,7 +840,9 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             "veto": f"**[HUMAN VETO]** {intervention_text}. This direction has been rejected — move on.",
                             "amplify": f"**[HUMAN AMPLIFY]** {intervention_text}. Please expand on this point in detail.",
                         }
-                        content = mode_prompts.get(mode, f"**[HUMAN INTERVENTION]** {intervention_text}")
+                        content = mode_prompts.get(
+                            mode, f"**[HUMAN INTERVENTION]** {intervention_text}"
+                        )
                         intervention_msg = Message(
                             id=str(uuid.uuid4())[:8],
                             persona_id="system",
@@ -732,8 +855,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         ws_session.messages.append(intervention_msg)
                         ws_session.turn_count += 1
                         record = InterventionRecord(
-                            id=str(uuid.uuid4())[:8], mode=mode, message=intervention_text,
-                            target=target, timestamp=time.time(),
+                            id=str(uuid.uuid4())[:8],
+                            mode=mode,
+                            message=intervention_text,
+                            target=target,
+                            timestamp=time.time(),
                         )
                         ws_session.interventions.append(record)
                         await update_and_emit_metrics(websocket, ws_session)
@@ -741,11 +867,18 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         await broadcast_to_all(
                             "message", {"message": asdict(intervention_msg)}
                         )
-                        await broadcast_to_all("intervention", {
-                            "type": "intervention", "mode": mode, "message": intervention_text,
-                            "target": target, "id": record.id, "timestamp": record.timestamp,
-                            "session_id": ws_session_id,
-                        })
+                        await broadcast_to_all(
+                            "intervention",
+                            {
+                                "type": "intervention",
+                                "mode": mode,
+                                "message": intervention_text,
+                                "target": target,
+                                "id": record.id,
+                                "timestamp": record.timestamp,
+                                "session_id": ws_session_id,
+                            },
+                        )
 
             elif msg.get("type") == "ping":
                 await websocket.send_json({"type": "pong"})
@@ -757,9 +890,13 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     ws_sid = list(active_sessions.keys())[-1]
                 if ws_sid and ws_sid in active_sessions:
                     state = extract_conversation_state(active_sessions[ws_sid])
-                    await websocket.send_json({"type": "conversation_state", "state": state})
+                    await websocket.send_json(
+                        {"type": "conversation_state", "state": state}
+                    )
                 else:
-                    await websocket.send_json({"type": "error", "message": "Session not found"})
+                    await websocket.send_json(
+                        {"type": "error", "message": "Session not found"}
+                    )
 
     except WebSocketDisconnect:
         pass
@@ -795,4 +932,3 @@ async def get_items(pillar: str = "", limit: int = 50):
             except Exception:
                 continue
     return items[:limit]
-

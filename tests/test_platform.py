@@ -240,7 +240,8 @@ def test_list_plugins_by_category(tmp_marketplace_db):
 
 
 def test_search_plugins(tmp_marketplace_db):
-    register_plugin("Web Search", "Search the web", category="tool", author="dev1")
+    p1 = register_plugin("Web Search", "Search the web", category="tool", author="dev1")
+    approve_plugin(p1["plugin_id"])
     approve_plugin(register_plugin("Data Analyzer", "Analyze data", category="tool", author="dev1")["plugin_id"])
 
     results = search_plugins("search")

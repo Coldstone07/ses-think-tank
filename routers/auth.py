@@ -9,7 +9,7 @@ from auth import (
 )
 from export import (
     export_session_markdown, publish_session, unpublish_session,
-    generate_rss_feed, export_all_sessions_markdown,
+    generate_rss_feed, export_all_sessions_markdown, MEMORY_DB_PATH,
 )
 from db import get_connection
 import sqlite3
@@ -102,8 +102,7 @@ async def view_shared_session_api(share_id: str):
     if not share:
         raise HTTPException(status_code=404, detail="Share not found")
     # Load session from memory DB
-    from db import _memory_db_path
-    conn = get_connection()
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (share["session_id"],))
@@ -139,7 +138,7 @@ async def export_session_md(session_id: str, current_user: dict = Depends(get_cu
 @router.get("/api/sessions/{session_id}/export/json")
 async def export_session_json(session_id: str, current_user: dict = Depends(get_current_user)):
     """Export a session as JSON (full data including insights/evals)."""
-    conn = get_connection()
+    conn = get_connection(str(MEMORY_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     cur.execute("SELECT * FROM memory_sessions WHERE session_id = ?", (session_id,))

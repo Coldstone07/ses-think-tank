@@ -5,6 +5,7 @@ User-configurable API keys, LLM provider selection, tool integration management.
 Supports multiple providers: LM Studio, Gemini, OpenAI, Anthropic, OpenRouter.
 Keys stored encrypted at rest (Fernet symmetric encryption).
 """
+
 import os
 import json
 import time
@@ -19,8 +20,23 @@ SETTINGS_DB_PATH = Path(os.environ.get("SES_SETTINGS_DB", "data/settings.db"))
 
 # Encryption key — in production, rotate this and re-encrypt stored keys
 # For self-hosted: set SES_ENCRYPTION_KEY env var (base64-encoded 32-byte key)
-# For demo: auto-generate per session (keys NOT persisted across restarts)
-_ENCRYPTION_KEY = os.environ.get("SES_ENCRYPTION_KEY") or Fernet.generate_key()
+# Persisted to disk at data/.encryption_key across restarts
+_ENCRYPTION_KEY_FILE = Path("data/.encryption_key")
+
+
+def _load_or_create_encryption_key():
+    env_key = os.environ.get("SES_ENCRYPTION_KEY")
+    if env_key:
+        return env_key.encode() if isinstance(env_key, str) else env_key
+    _ENCRYPTION_KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    if _ENCRYPTION_KEY_FILE.exists():
+        return _ENCRYPTION_KEY_FILE.read_bytes()
+    key = Fernet.generate_key()
+    _ENCRYPTION_KEY_FILE.write_bytes(key)
+    return key
+
+
+_ENCRYPTION_KEY = _load_or_create_encryption_key()
 _cipher = Fernet(_ENCRYPTION_KEY)
 
 
@@ -92,10 +108,26 @@ def get_available_providers() -> List[dict]:
             "description": "Local LLM server (Qwen, Llama, etc.)",
             "type": "local",
             "config_schema": {
-                "base_url": {"type": "string", "default": "http://localhost:1234", "label": "Server URL"},
-                "model": {"type": "string", "default": "qwen/qwen3.6-27b", "label": "Model ID"},
-                "max_tokens": {"type": "integer", "default": 2048, "label": "Max Tokens"},
-                "temperature": {"type": "number", "default": 0.7, "label": "Temperature"},
+                "base_url": {
+                    "type": "string",
+                    "default": "http://localhost:1234",
+                    "label": "Server URL",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "qwen/qwen3.6-27b",
+                    "label": "Model ID",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "default": 2048,
+                    "label": "Max Tokens",
+                },
+                "temperature": {
+                    "type": "number",
+                    "default": 0.7,
+                    "label": "Temperature",
+                },
             },
             "requires_key": False,
         },
@@ -105,9 +137,21 @@ def get_available_providers() -> List[dict]:
             "description": "Google's Gemini models (Flash, Pro)",
             "type": "cloud",
             "config_schema": {
-                "model": {"type": "string", "default": "gemini-2.5-flash", "label": "Model ID"},
-                "max_tokens": {"type": "integer", "default": 2048, "label": "Max Tokens"},
-                "temperature": {"type": "number", "default": 0.7, "label": "Temperature"},
+                "model": {
+                    "type": "string",
+                    "default": "gemini-2.5-flash",
+                    "label": "Model ID",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "default": 2048,
+                    "label": "Max Tokens",
+                },
+                "temperature": {
+                    "type": "number",
+                    "default": 0.7,
+                    "label": "Temperature",
+                },
             },
             "requires_key": True,
             "key_name": "GEMINI_API_KEY",
@@ -118,10 +162,22 @@ def get_available_providers() -> List[dict]:
             "description": "GPT-4, GPT-4o, o1, o3 models",
             "type": "cloud",
             "config_schema": {
-                "base_url": {"type": "string", "default": "https://api.openai.com/v1", "label": "API URL"},
+                "base_url": {
+                    "type": "string",
+                    "default": "https://api.openai.com/v1",
+                    "label": "API URL",
+                },
                 "model": {"type": "string", "default": "gpt-4o", "label": "Model ID"},
-                "max_tokens": {"type": "integer", "default": 2048, "label": "Max Tokens"},
-                "temperature": {"type": "number", "default": 0.7, "label": "Temperature"},
+                "max_tokens": {
+                    "type": "integer",
+                    "default": 2048,
+                    "label": "Max Tokens",
+                },
+                "temperature": {
+                    "type": "number",
+                    "default": 0.7,
+                    "label": "Temperature",
+                },
             },
             "requires_key": True,
             "key_name": "OPENAI_API_KEY",
@@ -132,11 +188,31 @@ def get_available_providers() -> List[dict]:
             "description": "Claude models (Sonnet, Opus, Haiku)",
             "type": "cloud",
             "config_schema": {
-                "base_url": {"type": "string", "default": "https://api.anthropic.com", "label": "API URL"},
-                "model": {"type": "string", "default": "claude-sonnet-4-20250514", "label": "Model ID"},
-                "max_tokens": {"type": "integer", "default": 2048, "label": "Max Tokens"},
-                "temperature": {"type": "number", "default": 0.7, "label": "Temperature"},
-                "api_version": {"type": "string", "default": "2023-06-01", "label": "API Version"},
+                "base_url": {
+                    "type": "string",
+                    "default": "https://api.anthropic.com",
+                    "label": "API URL",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "claude-sonnet-4-20250514",
+                    "label": "Model ID",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "default": 2048,
+                    "label": "Max Tokens",
+                },
+                "temperature": {
+                    "type": "number",
+                    "default": 0.7,
+                    "label": "Temperature",
+                },
+                "api_version": {
+                    "type": "string",
+                    "default": "2023-06-01",
+                    "label": "API Version",
+                },
             },
             "requires_key": True,
             "key_name": "ANTHROPIC_API_KEY",
@@ -147,10 +223,26 @@ def get_available_providers() -> List[dict]:
             "description": "Unified API for 100+ models",
             "type": "cloud",
             "config_schema": {
-                "base_url": {"type": "string", "default": "https://openrouter.ai/api/v1", "label": "API URL"},
-                "model": {"type": "string", "default": "anthropic/claude-sonnet-4", "label": "Model ID"},
-                "max_tokens": {"type": "integer", "default": 2048, "label": "Max Tokens"},
-                "temperature": {"type": "number", "default": 0.7, "label": "Temperature"},
+                "base_url": {
+                    "type": "string",
+                    "default": "https://openrouter.ai/api/v1",
+                    "label": "API URL",
+                },
+                "model": {
+                    "type": "string",
+                    "default": "anthropic/claude-sonnet-4",
+                    "label": "Model ID",
+                },
+                "max_tokens": {
+                    "type": "integer",
+                    "default": 2048,
+                    "label": "Max Tokens",
+                },
+                "temperature": {
+                    "type": "number",
+                    "default": 0.7,
+                    "label": "Temperature",
+                },
             },
             "requires_key": True,
             "key_name": "OPENROUTER_API_KEY",
@@ -187,7 +279,10 @@ def get_available_integrations() -> List[dict]:
 
 # ─── PROVIDER CONFIG ────────────────────────────────────────────────────────
 
-def save_provider_config(user_id: str, provider_name: str, config: dict, enabled: bool = True):
+
+def save_provider_config(
+    user_id: str, provider_name: str, config: dict, enabled: bool = True
+):
     """Save provider configuration for a user."""
     conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
@@ -196,8 +291,16 @@ def save_provider_config(user_id: str, provider_name: str, config: dict, enabled
            VALUES (?, ?, ?, ?, ?)
            ON CONFLICT(user_id, provider_name)
            DO UPDATE SET config_json = ?, is_enabled = ?, updated_at = ?""",
-        (user_id, provider_name, json.dumps(config), 1 if enabled else 0, time.time(),
-         json.dumps(config), 1 if enabled else 0, time.time())
+        (
+            user_id,
+            provider_name,
+            json.dumps(config),
+            1 if enabled else 0,
+            time.time(),
+            json.dumps(config),
+            1 if enabled else 0,
+            time.time(),
+        ),
     )
     conn.commit()
 
@@ -209,7 +312,7 @@ def get_provider_config(user_id: str, provider_name: str) -> dict:
     cur = conn.cursor()
     cur.execute(
         "SELECT * FROM provider_config WHERE user_id = ? AND provider_name = ?",
-        (user_id, provider_name)
+        (user_id, provider_name),
     )
     row = cur.fetchone()
     if row:
@@ -219,7 +322,12 @@ def get_provider_config(user_id: str, provider_name: str) -> dict:
             "is_enabled": bool(row["is_enabled"]),
             "is_default": bool(row["is_default"]),
         }
-    return {"provider_name": provider_name, "config": {}, "is_enabled": False, "is_default": False}
+    return {
+        "provider_name": provider_name,
+        "config": {},
+        "is_enabled": False,
+        "is_default": False,
+    }
 
 
 def get_all_provider_configs(user_id: str) -> list:
@@ -227,7 +335,10 @@ def get_all_provider_configs(user_id: str) -> list:
     conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT * FROM provider_config WHERE user_id = ? ORDER BY is_default DESC", (user_id,))
+    cur.execute(
+        "SELECT * FROM provider_config WHERE user_id = ? ORDER BY is_default DESC",
+        (user_id,),
+    )
     rows = cur.fetchall()
     return [
         {
@@ -244,10 +355,12 @@ def set_default_provider(user_id: str, provider_name: str):
     """Set a provider as the default for a user."""
     conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
-    cur.execute("UPDATE provider_config SET is_default = 0 WHERE user_id = ?", (user_id,))
+    cur.execute(
+        "UPDATE provider_config SET is_default = 0 WHERE user_id = ?", (user_id,)
+    )
     cur.execute(
         "UPDATE provider_config SET is_default = 1 WHERE user_id = ? AND provider_name = ?",
-        (user_id, provider_name)
+        (user_id, provider_name),
     )
     conn.commit()
 
@@ -259,7 +372,7 @@ def get_default_provider(user_id: str) -> str:
     cur = conn.cursor()
     cur.execute(
         "SELECT provider_name FROM provider_config WHERE user_id = ? AND is_default = 1 AND is_enabled = 1",
-        (user_id,)
+        (user_id,),
     )
     row = cur.fetchone()
     if row:
@@ -270,7 +383,10 @@ def get_default_provider(user_id: str) -> str:
 
 # ─── API KEYS ────────────────────────────────────────────────────────────────
 
-def save_api_key(user_id: str, provider: str, key_name: str, key_value: str, label: str = ""):
+
+def save_api_key(
+    user_id: str, provider: str, key_name: str, key_value: str, label: str = ""
+):
     """Save an API key (encrypted)."""
     encrypted = _encrypt(key_value)
     conn = get_connection(str(SETTINGS_DB_PATH))
@@ -280,8 +396,17 @@ def save_api_key(user_id: str, provider: str, key_name: str, key_value: str, lab
            VALUES (?, ?, ?, ?, ?, ?)
            ON CONFLICT(user_id, provider, key_name)
            DO UPDATE SET encrypted_key = ?, label = ?, updated_at = ?""",
-        (user_id, provider, key_name, encrypted, label, time.time(),
-         encrypted, label, time.time())
+        (
+            user_id,
+            provider,
+            key_name,
+            encrypted,
+            label,
+            time.time(),
+            encrypted,
+            label,
+            time.time(),
+        ),
     )
     conn.commit()
 
@@ -293,7 +418,7 @@ def get_api_key(user_id: str, provider: str, key_name: str) -> str:
     cur = conn.cursor()
     cur.execute(
         "SELECT encrypted_key FROM api_keys WHERE user_id = ? AND provider = ? AND key_name = ? AND is_active = 1",
-        (user_id, provider, key_name)
+        (user_id, provider, key_name),
     )
     row = cur.fetchone()
     if row:
@@ -312,7 +437,7 @@ def get_api_keys_list(user_id: str) -> list:
     cur = conn.cursor()
     cur.execute(
         "SELECT id, provider, key_name, label, is_active, created_at, updated_at FROM api_keys WHERE user_id = ?",
-        (user_id,)
+        (user_id,),
     )
     rows = cur.fetchall()
     return [dict(row) for row in rows]
@@ -322,7 +447,10 @@ def delete_api_key(user_id: str, key_id: int):
     """Delete (deactivate) an API key."""
     conn = get_connection(str(SETTINGS_DB_PATH))
     cur = conn.cursor()
-    cur.execute("UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?", (key_id, user_id))
+    cur.execute(
+        "UPDATE api_keys SET is_active = 0 WHERE id = ? AND user_id = ?",
+        (key_id, user_id),
+    )
     conn.commit()
 
 
@@ -341,6 +469,7 @@ def get_environment_keys() -> dict:
 
 # ─── USER SETTINGS ───────────────────────────────────────────────────────────
 
+
 def save_setting(user_id: str, key: str, value: str):
     """Save a user setting."""
     conn = get_connection(str(SETTINGS_DB_PATH))
@@ -350,7 +479,7 @@ def save_setting(user_id: str, key: str, value: str):
            VALUES (?, ?, ?, ?)
            ON CONFLICT(user_id, setting_key)
            DO UPDATE SET setting_value = ?, updated_at = ?""",
-        (user_id, key, value, time.time(), value, time.time())
+        (user_id, key, value, time.time(), value, time.time()),
     )
     conn.commit()
 
@@ -362,7 +491,7 @@ def get_setting(user_id: str, key: str, default: str = "") -> str:
     cur = conn.cursor()
     cur.execute(
         "SELECT setting_value FROM user_settings WHERE user_id = ? AND setting_key = ?",
-        (user_id, key)
+        (user_id, key),
     )
     row = cur.fetchone()
     if row:
@@ -375,12 +504,16 @@ def get_all_settings(user_id: str) -> dict:
     conn = get_connection(str(SETTINGS_DB_PATH))
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT setting_key, setting_value FROM user_settings WHERE user_id = ?", (user_id,))
+    cur.execute(
+        "SELECT setting_key, setting_value FROM user_settings WHERE user_id = ?",
+        (user_id,),
+    )
     rows = cur.fetchall()
     return {row["setting_key"]: row["setting_value"] for row in rows}
 
 
 # ─── PROVIDER ROUTING ────────────────────────────────────────────────────────
+
 
 def get_provider_env(user_id: str = "default") -> dict:
     """

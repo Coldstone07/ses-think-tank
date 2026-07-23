@@ -26,6 +26,7 @@ import time
 import uuid
 import yaml
 from collections import Counter
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -33,7 +34,15 @@ from typing import Any, Dict, List, Optional
 
 import sqlite3
 import requests
-from fastapi import FastAPI, Request, Request as FastAPIRequest, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi import (
+    FastAPI,
+    Request,
+    Request as FastAPIRequest,
+    WebSocket,
+    WebSocketDisconnect,
+    Depends,
+    HTTPException,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, JSONResponse
 
@@ -118,12 +127,18 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 # ─── PLUGIN SYSTEM (Phase 4.1) ────────────────────────────────────────────────────
 
 from plugins import (
-    plugin_store, get_all_personas, get_all_workflows,
-    PERSONA_REQUIRED, PERSONA_OPTIONAL,
-    tool_store, validate_tool, tool_to_openai_schema,
+    plugin_store,
+    get_all_personas,
+    get_all_workflows,
+    PERSONA_REQUIRED,
+    PERSONA_OPTIONAL,
+    tool_store,
+    validate_tool,
+    tool_to_openai_schema,
     execute_tool_plugin,
     load_knowledge,
-    add_memory, extract_memories_from_conversation,
+    add_memory,
+    extract_memories_from_conversation,
     list_personas_with_knowledge,
 )
 
@@ -133,58 +148,90 @@ print(f"[plugins] Loaded {_plugin_summary}")
 
 # Phase 4.3: Initialize tool store
 _tool_init = tool_store.load_all(tools_dir=str(BASE_DIR / "plugins" / "tools"))
-print(f"[tools] Loaded {_tool_init.get('loaded', _tool_init.get('count', 0))} tool plugins")
+print(
+    f"[tools] Loaded {_tool_init.get('loaded', _tool_init.get('count', 0))} tool plugins"
+)
 
 # Phase 4.4: Session Intelligence
 from session_intelligence import (
-    init_intelligence_schema, extract_insights_from_session,
-    save_insights, build_session_graph, get_related_sessions,
-    smart_recall, get_session_insights, get_insight_summary,
+    init_intelligence_schema,
+    extract_insights_from_session,
+    save_insights,
+    build_session_graph,
+    get_related_sessions,
+    smart_recall,
+    get_session_insights,
+    get_insight_summary,
     build_recall_prompt,
 )
+
 init_intelligence_schema()
 print("[session_intelligence] Schema initialized")
 
 # Phase 4.5: Evaluation Dashboard
 from evaluation_dashboard import (
-    init_evaluation_schema, analyze_session, save_session_metrics,
-    get_dashboard_summary, get_session_analytics, get_persona_trends,
-    get_quality_trend, export_session_report,
+    init_evaluation_schema,
+    analyze_session,
+    save_session_metrics,
+    get_dashboard_summary,
+    get_session_analytics,
+    get_persona_trends,
+    get_quality_trend,
+    export_session_report,
 )
+
 init_evaluation_schema()
 print("[evaluation_dashboard] Schema initialized")
 
 # Phase 4.6: Persona Evolution
 from persona_evolution import (
-    init_evolution_schema, process_session_evolution,
-    get_persona_profile, get_evolution_summary,
+    init_evolution_schema,
+    process_session_evolution,
+    get_persona_profile,
+    get_evolution_summary,
     generate_adaptation_prompt,
 )
+
 init_evolution_schema()
 print("[persona_evolution] Schema initialized")
 
 # Phase 4.7: Settings & Integrations
 from settings import (
     init_settings_schema,
-    get_available_providers, get_available_integrations,
-    save_provider_config, get_provider_config, get_all_provider_configs,
-    set_default_provider, get_default_provider,
-    save_api_key, get_api_key, get_api_keys_list, delete_api_key,
+    get_available_providers,
+    get_available_integrations,
+    save_provider_config,
+    get_provider_config,
+    get_all_provider_configs,
+    set_default_provider,
+    get_default_provider,
+    save_api_key,
+    get_api_key,
+    get_api_keys_list,
+    delete_api_key,
     get_environment_keys,
-    save_setting, get_setting, get_all_settings,
+    save_setting,
+    get_setting,
+    get_all_settings,
     get_provider_env,
 )
+
 init_settings_schema()
 print("[settings] Schema initialized")
 
 # Initialize default LM Studio provider from env
 try:
-    save_provider_config("default", "lm_studio", {
-        "base_url": LM_STUDIO_URL,
-        "model": MODEL_ID,
-        "max_tokens": 2048,
-        "temperature": 0.7,
-    }, enabled=True)
+    save_provider_config(
+        "default",
+        "lm_studio",
+        {
+            "base_url": LM_STUDIO_URL,
+            "model": MODEL_ID,
+            "max_tokens": 2048,
+            "temperature": 0.7,
+        },
+        enabled=True,
+    )
     set_default_provider("default", "lm_studio")
 except Exception:
     pass  # Already initialized
@@ -192,76 +239,135 @@ except Exception:
 # Initialize Gemini provider if key exists
 if GEMINI_API_KEY:
     try:
-        save_provider_config("default", "gemini", {
-            "model": "gemini-2.5-flash",
-            "max_tokens": 2048,
-            "temperature": 0.7,
-        }, enabled=True)
+        save_provider_config(
+            "default",
+            "gemini",
+            {
+                "model": "gemini-2.5-flash",
+                "max_tokens": 2048,
+                "temperature": 0.7,
+            },
+            enabled=True,
+        )
         save_api_key("default", "gemini", "GEMINI_API_KEY", GEMINI_API_KEY, "From env")
     except Exception:
         pass
 
 # Phase 5.1: Authentication
 from auth import (
-    init_auth_schema, seed_default_user,
-    register_user, authenticate_user,
-    create_access_token, create_refresh_token, verify_refresh_token, decode_token,
-    get_user_by_id, get_current_user, get_optional_user, require_admin,
-    check_rate_limit, get_quota_status,
-    create_session_share, get_shared_session, revoke_session_share, get_user_shares,
+    init_auth_schema,
+    seed_default_user,
+    register_user,
+    authenticate_user,
+    create_access_token,
+    create_refresh_token,
+    verify_refresh_token,
+    decode_token,
+    get_user_by_id,
+    get_current_user,
+    get_optional_user,
+    require_admin,
+    check_rate_limit,
+    get_quota_status,
+    create_session_share,
+    get_shared_session,
+    revoke_session_share,
+    get_user_shares,
 )
+
 init_auth_schema()
 seed_default_user()
 print("[auth] Schema initialized, default user seeded")
 
 # Phase 5.2: Export & Distribution
 from export import (
-    export_session_markdown, export_all_sessions_markdown,
-    get_public_session, generate_rss_feed,
-    publish_session, unpublish_session,
+    export_session_markdown,
+    export_all_sessions_markdown,
+    get_public_session,
+    generate_rss_feed,
+    publish_session,
+    unpublish_session,
 )
+
 print("[export] Export module loaded")
 
 # Phase 5.3: Deeper Intelligence
 from intelligence import (
-    init_intelligence_schema, generate_session_embeddings,
-    semantic_search, synthesize_across_sessions,
-    generate_knowledge_from_sessions, get_persona_knowledge,
-    compute_quality_trend, get_quality_overview,
+    init_intelligence_schema,
+    generate_session_embeddings,
+    semantic_search,
+    synthesize_across_sessions,
+    generate_knowledge_from_sessions,
+    get_persona_knowledge,
+    compute_quality_trend,
+    get_quality_overview,
 )
+
 init_intelligence_schema()
 print("[intelligence] Deeper intelligence module loaded")
 
 # Phase 5.4: Research & Benchmarking
 from research import (
-    init_research_schema, create_template, get_template, list_templates,
-    use_template, delete_template,
-    create_ab_test, get_ab_test, record_ab_result, get_ab_test_summary,
-    create_provider_comparison, record_provider_result, get_provider_comparison,
-    create_reproducible_session, get_reproducible_session, verify_reproducibility,
-    compute_ses_scores, get_ses_scores, export_ses_scores_csv,
+    init_research_schema,
+    create_template,
+    get_template,
+    list_templates,
+    use_template,
+    delete_template,
+    create_ab_test,
+    get_ab_test,
+    record_ab_result,
+    get_ab_test_summary,
+    create_provider_comparison,
+    record_provider_result,
+    get_provider_comparison,
+    create_reproducible_session,
+    get_reproducible_session,
+    verify_reproducibility,
+    compute_ses_scores,
+    get_ses_scores,
+    export_ses_scores_csv,
 )
+
 init_research_schema()
 print("[research] Research & benchmarking module loaded")
 
 # Phase 5.5: Collaboration
 from collaboration import (
-    init_collab_schema, fork_session, get_forks, get_fork_history,
-    create_comparison, get_comparison,
-    create_annotation, get_annotations, update_annotation,
-    delete_annotation, get_annotation_summary,
+    init_collab_schema,
+    fork_session,
+    get_forks,
+    get_fork_history,
+    create_comparison,
+    get_comparison,
+    create_annotation,
+    get_annotations,
+    update_annotation,
+    delete_annotation,
+    get_annotation_summary,
 )
+
 init_collab_schema()
 print("[collaboration] Collaboration module loaded")
 
 # Phase 5.6: Platform & Scale
 from platform_scale import (
-    metrics, logger, APIRouter,
-    init_marketplace_schema, register_plugin, get_plugin, list_plugins,
-    search_plugins, install_plugin, approve_plugin, rate_plugin,
-    get_plugin_reviews, get_marketplace_stats,
+    metrics,
+    logger,
+    APIRouter,
+    init_marketplace_schema,
+    register_plugin,
+    get_plugin,
+    list_plugins,
+    search_plugins,
+    install_plugin,
+    approve_plugin,
+    rate_plugin,
+    get_plugin_reviews,
+    get_marketplace_stats,
 )
 from db import get_connection
+
 init_marketplace_schema()
 print("[platform] Platform & scale module loaded")
 
@@ -302,9 +408,12 @@ def augment_system_prompt(persona: dict, topic: str = "") -> str:
     # Phase 4.6: Inject adaptation instructions based on recent feedback
     try:
         from evaluation_dashboard import get_persona_trends as get_pt
+
         trends = get_pt(persona_id, limit=5)
         if trends.get("dimension_averages"):
-            adaptation = generate_adaptation_prompt(persona_id, trends["dimension_averages"])
+            adaptation = generate_adaptation_prompt(
+                persona_id, trends["dimension_averages"]
+            )
             if adaptation:
                 prompt = prompt + "\n\n" + adaptation
     except Exception:
@@ -1204,7 +1313,9 @@ def call_llm_with_tools(
                 break
 
             except requests.exceptions.ReadTimeout:
-                log.warning("LM Studio timeout (attempt %d/3), retrying...", attempt + 1)
+                log.warning(
+                    "LM Studio timeout (attempt %d/3), retrying...", attempt + 1
+                )
                 _time.sleep(5)
             except Exception as e:
                 log.error("LM Studio error: %s", e)
@@ -1231,11 +1342,21 @@ def call_llm_with_tools(
             if content:
                 # Strip any TOOL_CALL: lines from the output
                 clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", content).strip()
-                return {"content": clean or content, "reasoning": reasoning, "tool_uses": tool_uses}
+                return {
+                    "content": clean or content,
+                    "reasoning": reasoning,
+                    "tool_uses": tool_uses,
+                }
             if reasoning:
-                clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", reasoning).strip()
+                clean = re.sub(
+                    r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", reasoning
+                ).strip()
                 extracted = extract_from_reasoning(reasoning)
-                return {"content": extracted or clean, "reasoning": reasoning, "tool_uses": tool_uses}
+                return {
+                    "content": extracted or clean,
+                    "reasoning": reasoning,
+                    "tool_uses": tool_uses,
+                }
             return {"content": "", "reasoning": reasoning, "tool_uses": tool_uses}
 
         # Execute tool calls
@@ -1248,7 +1369,9 @@ def call_llm_with_tools(
                 tool_call_id = tc.get("id", f"call_{tool_name}_{int(_time.time())}")
 
                 try:
-                    args = json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                    args = (
+                        json.loads(args_raw) if isinstance(args_raw, str) else args_raw
+                    )
                 except json.JSONDecodeError:
                     args = {}
 
@@ -1296,16 +1419,16 @@ def call_llm_with_tools(
                 if result_text:
                     feedback += f"\nResult:\n{result_text[:3000]}"  # Cap at 3K chars
 
-                current_messages.append(
-                    {"role": "assistant", "content": full_text}
-                )
-                current_messages.append(
-                    {"role": "system", "content": feedback}
-                )
+                current_messages.append({"role": "assistant", "content": full_text})
+                current_messages.append({"role": "system", "content": feedback})
 
     # Exhausted rounds — return best content
     clean = re.sub(r"TOOL_CALL:\s*\w+\([^)]*\)\s*\n?", "", content).strip()
-    return {"content": clean or content or extract_from_reasoning(reasoning), "reasoning": reasoning, "tool_uses": tool_uses}
+    return {
+        "content": clean or content or extract_from_reasoning(reasoning),
+        "reasoning": reasoning,
+        "tool_uses": tool_uses,
+    }
 
 
 def extract_json_from_text(text: str) -> Optional[dict]:
@@ -1534,7 +1657,10 @@ def extract_from_reasoning(reasoning: str) -> str:
             continue
         if len(p) < 80:
             continue
-        if any(kw in p.lower() for kw in ["check against", "constraints", "ready.", "all constraints"]):
+        if any(
+            kw in p.lower()
+            for kw in ["check against", "constraints", "ready.", "all constraints"]
+        ):
             continue
         return p
 
@@ -1611,6 +1737,7 @@ class WhiteboardPin:
 @dataclass
 class InterventionRecord:
     """Record of a human intervention in the conversation."""
+
     id: str
     mode: str  # steer, veto, amplify, pause, resume
     message: str
@@ -1818,7 +1945,9 @@ def extract_conversation_state(session: ConversationSession) -> Dict:
     """Extract current conversation state: topic, phase progress, dominant themes, etc."""
     messages = session.messages
     if not messages:
-        workflow = resolve_workflows().get(session.workflow_mode, resolve_workflows()["salon"])
+        workflow = resolve_workflows().get(
+            session.workflow_mode, resolve_workflows()["salon"]
+        )
         phases = workflow.get("phases", [])
         empty_phase_name = ""
         if not phases:
@@ -2013,7 +2142,9 @@ def extract_conversation_state(session: ConversationSession) -> Dict:
         topics_covered.sort(key=lambda x: -x["turn_count"])
 
     # Phase progress
-    workflow = resolve_workflows().get(session.workflow_mode, resolve_workflows()["salon"])
+    workflow = resolve_workflows().get(
+        session.workflow_mode, resolve_workflows()["salon"]
+    )
     phases = workflow.get("phases", [])
     turns_in_phase = 0
 
@@ -2069,7 +2200,9 @@ async def update_conversation_state(
 
 def get_phase_name(session: ConversationSession) -> str:
     """Get the current phase display name from workflow."""
-    workflow = resolve_workflows().get(session.workflow_mode, resolve_workflows()["salon"])
+    workflow = resolve_workflows().get(
+        session.workflow_mode, resolve_workflows()["salon"]
+    )
     phases = workflow.get("phases", [])
     if not phases:
         return "Freeform"
@@ -2244,9 +2377,15 @@ def populate_memory(session: ConversationSession):
         insights = extract_insights_from_session(session.session_id, session.messages)
         if insights:
             save_insights(session.session_id, insights)
-            log.info("Extracted %d insights for session %s", len(insights), session.session_id)
+            log.info(
+                "Extracted %d insights for session %s",
+                len(insights),
+                session.session_id,
+            )
     except Exception as e:
-        log.warning("Insight extraction failed for session %s: %s", session.session_id, e)
+        log.warning(
+            "Insight extraction failed for session %s: %s", session.session_id, e
+        )
 
     # Phase 4.4: Update session graph (background, limited scope)
     try:
@@ -2259,22 +2398,30 @@ def populate_memory(session: ConversationSession):
         metrics = analyze_session(session.session_id, session.messages)
         if metrics.get("dimension_scores"):
             save_session_metrics(session.session_id, metrics)
-            log.info("Session %s evaluated: quality=%.2f, insights=%d",
-                     session.session_id, metrics.get("overall_quality", 0),
-                     metrics.get("insight_count", 0))
+            log.info(
+                "Session %s evaluated: quality=%.2f, insights=%d",
+                session.session_id,
+                metrics.get("overall_quality", 0),
+                metrics.get("insight_count", 0),
+            )
     except Exception as e:
         log.warning("Session evaluation failed for %s: %s", session.session_id, e)
 
     # Phase 4.6: Process persona evolution
     try:
-        persona_scores = {pid: pdata.get("scores", {})
-                         for pid, pdata in metrics.get("persona_scores", {}).items()}
+        persona_scores = {
+            pid: pdata.get("scores", {})
+            for pid, pdata in metrics.get("persona_scores", {}).items()
+        }
         evolution = process_session_evolution(
             session.session_id, session.messages, persona_scores
         )
         if evolution:
-            log.info("Persona evolution processed for session %s: %d personas updated",
-                     session.session_id, len(evolution))
+            log.info(
+                "Persona evolution processed for session %s: %d personas updated",
+                session.session_id,
+                len(evolution),
+            )
     except Exception as e:
         log.warning("Persona evolution failed for %s: %s", session.session_id, e)
 
@@ -2593,7 +2740,9 @@ You are starting this conversation. Set the stage, share your initial thoughts, 
         0.9,
         1024,
     )
-    opening_content = raw_response.get("content", "") or extract_from_reasoning(raw_response.get("reasoning_content", ""))
+    opening_content = raw_response.get("content", "") or extract_from_reasoning(
+        raw_response.get("reasoning_content", "")
+    )
     opening_reasoning = raw_response.get("reasoning_content", "")
 
     msg = Message(
@@ -2665,7 +2814,9 @@ Now it's your turn. Engage with what others have said. Be specific and genuine. 
             0.85,
             1024,
         )
-        response_content = raw_response.get("content", "") or extract_from_reasoning(raw_response.get("reasoning_content", ""))
+        response_content = raw_response.get("content", "") or extract_from_reasoning(
+            raw_response.get("reasoning_content", "")
+        )
         response_reasoning = raw_response.get("reasoning_content", "")
 
         msg = Message(
@@ -2832,26 +2983,34 @@ Respond in your natural voice. Be specific, genuine, and build on what others ha
 
             # Tool callback: broadcast to WebSocket
             tool_ws = websocket
+
             def on_tool_use(tool_name: str, result: dict):
                 nonlocal tool_ws
                 if tool_ws:
                     asyncio.get_event_loop().run_until_complete(
-                        send_ws(tool_ws, "tool_use", {
-                            "persona_id": speaker["id"],
-                            "persona_name": speaker["name"],
-                            "icon": speaker["icon"],
-                            "tool": tool_name,
-                            "result": str(result.get("result", ""))[:500],
-                            "error": result.get("error"),
-                            "timestamp": time.time(),
-                        })
+                        send_ws(
+                            tool_ws,
+                            "tool_use",
+                            {
+                                "persona_id": speaker["id"],
+                                "persona_name": speaker["name"],
+                                "icon": speaker["icon"],
+                                "tool": tool_name,
+                                "result": str(result.get("result", ""))[:500],
+                                "error": result.get("error"),
+                                "timestamp": time.time(),
+                            },
+                        )
                     )
 
             result = await asyncio.get_event_loop().run_in_executor(
                 None,
                 call_llm_with_tools,
                 [
-                    {"role": "system", "content": augment_system_prompt(speaker, session.topic)},
+                    {
+                        "role": "system",
+                        "content": augment_system_prompt(speaker, session.topic),
+                    },
                     {"role": "user", "content": response_prompt},
                 ],
                 resolve_tools(),
@@ -2999,7 +3158,16 @@ def save_session_to_disk(session: ConversationSession):
         "synergy_metrics": session.synergy_metrics,
         "metrics_history": session.metrics_history,
         # Phase 4.3: HITL v2
-        "interventions": [{"id": r.id, "mode": r.mode, "message": r.message, "target": r.target, "timestamp": r.timestamp} for r in session.interventions],
+        "interventions": [
+            {
+                "id": r.id,
+                "mode": r.mode,
+                "message": r.message,
+                "target": r.target,
+                "timestamp": r.timestamp,
+            }
+            for r in session.interventions
+        ],
         "is_paused": session.is_paused,
     }
     with open(path, "w", encoding="utf-8") as f:
@@ -3074,31 +3242,11 @@ async def broadcast_whiteboard(session_id: str):
 
 # ─── FASTAPI APP ─────────────────────────────────────────────────────────────
 
-app = FastAPI(title="SES Think Tank v3")
-app.mount("/static", StaticFiles(directory=str(BASE_DIR / "web")), name="static")
 
-active_connections: Dict[str, WebSocket] = {}
-active_sessions: Dict[str, ConversationSession] = {}
-
-
-def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
-    """Find a free TCP port starting from start_port."""
-    import socket
-    for port in range(start_port, start_port + max_attempts):
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(("", port))
-                return port
-            except OSError:
-                continue
-    return start_port
-
-
-@app.on_event("startup")
-async def startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     init_memory_db()
     load_sessions_from_disk()
-    # Include routers AFTER all app symbols are defined (breaks circular import)
     from routers import (
         core_router,
         plugins_router,
@@ -3109,6 +3257,7 @@ async def startup():
         collaboration_router,
         platform_router,
     )
+
     app.include_router(core_router)
     app.include_router(plugins_router)
     app.include_router(intelligence_router)
@@ -3117,6 +3266,45 @@ async def startup():
     app.include_router(research_router)
     app.include_router(collaboration_router)
     app.include_router(platform_router)
+
+    async def _cleanup_rate_limits():
+        while True:
+            await asyncio.sleep(3600)
+            cutoff = time.time() - 3600
+            expired = [
+                ip
+                for ip, ts_list in list(RATE_LIMIT_STORE.items())
+                if ts_list and all(t < cutoff for t in ts_list)
+            ]
+            for ip in expired:
+                del RATE_LIMIT_STORE[ip]
+
+    cleanup_task = asyncio.create_task(_cleanup_rate_limits())
+
+    yield
+
+    cleanup_task.cancel()
+
+
+app = FastAPI(title="SES Think Tank v3", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "web")), name="static")
+
+active_connections: Dict[str, WebSocket] = {}
+active_sessions: Dict[str, ConversationSession] = {}
+
+
+def find_free_port(start_port: int = 8773, max_attempts: int = 10) -> int:
+    """Find a free TCP port starting from start_port."""
+    import socket
+
+    for port in range(start_port, start_port + max_attempts):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            try:
+                s.bind(("", port))
+                return port
+            except OSError:
+                continue
+    return start_port
 
 
 # ─── RATE LIMITER MIDDLEWARE ──────────────────────────────────────────────
@@ -3139,5 +3327,3 @@ async def rate_limit_middleware(request: Request, call_next):
     RATE_LIMIT_STORE[ip] = timestamps
     response = await call_next(request)
     return response
-
-

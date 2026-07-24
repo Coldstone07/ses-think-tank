@@ -3326,4 +3326,10 @@ async def rate_limit_middleware(request: Request, call_next):
     timestamps.append(now)
     RATE_LIMIT_STORE[ip] = timestamps
     response = await call_next(request)
+    # Security headers
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    response.headers.setdefault("Content-Security-Policy", "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' ws: wss: https:")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     return response

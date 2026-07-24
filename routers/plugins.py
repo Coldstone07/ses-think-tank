@@ -68,7 +68,8 @@ async def create_plugin_persona(request: FastAPIRequest):
         PERSONA_NAMES = {p["id"]: p["name"] for p in resolve_personas()}
         return {"created": fpath, "reloaded": True, "summary": summary}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        log.error("Failed to create plugin persona: %s", e)
+        return JSONResponse(status_code=500, content={"error": "Failed to create plugin persona"})
 
 
 @router.delete("/api/plugins/personas/{persona_id}")
@@ -84,7 +85,8 @@ async def delete_plugin_persona(persona_id: str):
         PERSONA_NAMES = {p["id"]: p["name"] for p in resolve_personas()}
         return {"deleted": fpath, "reloaded": True, "summary": summary}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        log.error("Failed to delete plugin persona: %s", e)
+        return JSONResponse(status_code=500, content={"error": "Failed to delete plugin persona"})
 
 
 @router.get("/api/plugins/needs-reload")
@@ -129,7 +131,8 @@ async def create_tool():
         summary = tool_store.load_all(str(BASE_DIR))
         return {"created": fpath, "reloaded": True, "summary": summary}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        log.error("Failed to create tool: %s", e)
+        return JSONResponse(status_code=500, content={"error": "Failed to create tool"})
 
 
 @router.delete("/api/tools/{tool_name}")
@@ -143,7 +146,8 @@ async def delete_tool(tool_name: str):
         summary = tool_store.load_all(str(BASE_DIR))
         return {"deleted": fpath, "reloaded": True, "summary": summary}
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        log.error("Failed to delete tool: %s", e)
+        return JSONResponse(status_code=500, content={"error": "Failed to delete tool"})
 
 
 @router.get("/api/knowledge")

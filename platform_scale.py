@@ -256,7 +256,7 @@ class APIRouter:
         try:
             return handler(body or {})
         except Exception as e:
-            return {"status": 500, "error": str(e)}
+            return {"status": 500, "error": "Internal server error"}
 
     def get_routes(self) -> List[dict]:
         """List all registered routes."""

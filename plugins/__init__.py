@@ -137,7 +137,7 @@ class PluginStore:
                 except yaml.YAMLError as e:
                     self.errors.append({"file": fpath, "error": f"YAML parse error: {e}"})
                 except Exception as e:
-                    self.errors.append({"file": fpath, "error": str(e)})
+                    self.errors.append({"file": fpath, "error": "Load failed"})
 
         return {
             "loaded": len(self.files),

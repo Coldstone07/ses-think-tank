@@ -731,7 +731,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     active_sessions[session_id] = session
                 except Exception as e:
                     await websocket.send_json(
-                        {"type": "error", "message": f"Conversation failed: {str(e)}"}
+                        {"type": "error", "message": "Conversation failed"}
                     )
 
             elif msg.get("type") == "pin_idea":

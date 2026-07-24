@@ -76,7 +76,7 @@ def execute_tool_plugin(td, args, base_dir="."):
             return _exec_http(ec, args, timeout)
         return {"result": None, "error": f"Unknown type: {et}"}
     except Exception as e:
-        return {"result": None, "error": f"Execution error: {str(e)}"}
+        return {"result": None, "error": "Execution error"}
 
 
 def _exec_python(ec, args, base_dir, timeout, sandbox):
@@ -183,7 +183,7 @@ def _exec_http(ec, args, timeout):
         resp.raise_for_status()
         return {"result": resp.text[:4000], "error": None}
     except req.RequestException as e:
-        return {"result": None, "error": f"HTTP error: {str(e)}"}
+        return {"result": None, "error": "HTTP error"}
 
 
 class ToolStore:
@@ -221,7 +221,7 @@ class ToolStore:
             except yaml.YAMLError as e:
                 self.errors.append({"file": fp, "error": f"YAML parse: {e}"})
             except Exception as e:
-                self.errors.append({"file": fp, "error": str(e)})
+                self.errors.append({"file": fp, "error": "Load failed"})
         return {
             "loaded": len(self.tools),
             "errors": len(self.errors),

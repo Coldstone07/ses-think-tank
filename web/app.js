@@ -35,12 +35,12 @@ async function init() {
 function renderPersonas() {
   const list = document.getElementById('personaList');
   list.innerHTML = personas.map(p => `
-    <div class="persona-card ${selectedPersonas.includes(p.id) ? 'selected' : ''}" onclick="togglePersona('${p.id}')">
+    <div class="persona-card ${selectedPersonas.includes(p.id) ? 'selected' : ''}" onclick="togglePersona('${escapeHtml(p.id)}')">
       <div class="persona-header">
-        <span class="persona-icon">${p.icon}</span>
-        <div><div class="persona-name">${p.name}</div><div class="persona-title">${p.title}</div></div>
+        <span class="persona-icon">${escapeHtml(p.icon)}</span>
+        <div><div class="persona-name">${escapeHtml(p.name)}</div><div class="persona-title">${escapeHtml(p.title)}</div></div>
       </div>
-      ${p.background ? `<div style="font-size:10px;color:var(--text-dim);margin-top:5px;line-height:1.5;padding-top:5px;border-top:1px solid var(--border);">${p.background}</div>` : ''}
+      ${p.background ? `<div style="font-size:10px;color:var(--text-dim);margin-top:5px;line-height:1.5;padding-top:5px;border-top:1px solid var(--border);">${escapeHtml(p.background)}</div>` : ''}
     </div>
   `).join('');
 }
@@ -137,7 +137,7 @@ function addMessage(msg) {
   document.getElementById('statTurns').textContent = turnCount;
   document.getElementById('statSpeakers').textContent = speakers.size;
   const isRight = ['rook','maya'].includes(msg.persona_id);
-  const toolBadges = (msg.tool_uses||[]).map(t => `<span class="tool-badge ${t.error?'error':''}" title="${t.error||t.result||''}">🔧 ${t.tool}</span>`).join('');
+  const toolBadges = (msg.tool_uses||[]).map(t => `<span class="tool-badge ${t.error?'error':''}" title="${escapeHtml(t.error||t.result||'')}">🔧 ${escapeHtml(t.tool)}</span>`).join('');
   const div = document.createElement('div');
   div.className = `message ${msg.persona_id||''} ${isRight?'right':'left'}`;
   const content = renderMarkdown(msg.content);
@@ -188,7 +188,7 @@ function showEvaluation(data) {
   const ev = data.evaluation;
   const div = document.createElement('div');
   div.className = 'eval-badge';
-  div.innerHTML = `<div style="display:flex;align-items:center;gap:12px;"><div class="eval-score">${ev.quality_score}/10</div><div><div style="font-weight:600;margin-bottom:2px;">📊 Evaluation (Turn ${data.turn})</div><div class="eval-reason">${ev.reason||''}</div><div style="margin-top:4px;color:${ev.should_continue?'#22c55e':'#ef4444'};">${ev.should_continue?'▶ Continuing...':'⏹ Ended'}</div></div></div>`;
+  div.innerHTML = `<div style="display:flex;align-items:center;gap:12px;"><div class="eval-score">${ev.quality_score}/10</div><div><div style="font-weight:600;margin-bottom:2px;">📊 Evaluation (Turn ${data.turn})</div><div class="eval-reason">${escapeHtml(ev.reason||'')}</div><div style="margin-top:4px;color:${ev.should_continue?'#22c55e':'#ef4444'};">${ev.should_continue?'▶ Continuing...':'⏹ Ended'}</div></div></div>`;
   chat.appendChild(div);
   chat.scrollTop = chat.scrollHeight;
 }
@@ -329,7 +329,7 @@ function renderWhiteboard(wb) {
     const authorIcon = personaIcons[pin.author]||'📌';
     const authorColor = personaColors[pin.author]||'var(--text)';
     const commentsHtml = (pin.comments||[]).map(c => `<div class="comment"><span class="comment-author">${personaIcons[c.author]||'💬'} ${c.author}</span> ${escapeHtml(c.text)}</div>`).join('');
-    return `<div class="pin-card" data-pin-id="${pin.id}" onclick="togglePinExpand(this)"><div class="pin-header"><span class="pin-author"><span style="color:${authorColor}">${authorIcon}</span> ${pin.author}</span><span class="pin-status-badge ${statusClass}">${statusLabels[pin.status]||pin.status}</span></div><div class="pin-topic">${escapeHtml(pin.topic)}</div><div class="pin-content">${escapeHtml(pin.content)}</div><div class="pin-actions">${voteBtns}</div><div class="pin-comments">${commentsHtml}<div class="comment-input-area"><input class="comment-input" placeholder="Comment..." onkeydown="if(event.key==='Enter')addComment('${pin.id}',this)"><button class="comment-btn" onclick="addComment('${pin.id}',this.previousElementSibling)">Send</button></div></div></div>`;
+    return `<div class="pin-card" data-pin-id="${escapeHtml(pin.id)}" onclick="togglePinExpand(this)"><div class="pin-header"><span class="pin-author"><span style="color:${authorColor}">${authorIcon}</span> ${escapeHtml(pin.author)}</span><span class="pin-status-badge ${statusClass}">${escapeHtml(statusLabels[pin.status]||pin.status)}</span></div><div class="pin-topic">${escapeHtml(pin.topic)}</div><div class="pin-content">${escapeHtml(pin.content)}</div><div class="pin-actions">${voteBtns}</div><div class="pin-comments">${commentsHtml}<div class="comment-input-area"><input class="comment-input" placeholder="Comment..." onkeydown="if(event.key==='Enter')addComment('${escapeHtml(pin.id)}',this)"><button class="comment-btn" onclick="addComment('${escapeHtml(pin.id)}',this.previousElementSibling)">Send</button></div></div></div>`;
   }).join('');
 }
 
@@ -411,7 +411,7 @@ document.getElementById('interveneInput')?.addEventListener('keydown', e => { if
 
 function showMemorySuggestion(data) {
   if(!data.match_count) return;
-  document.getElementById('memoryBadgeRow').innerHTML = `<span class="badge-chip amber" onclick="searchMemory()">${data.message}</span>`;
+  document.getElementById('memoryBadgeRow').innerHTML = `<span class="badge-chip amber" onclick="searchMemory()">${escapeHtml(data.message)}</span>`;
   if(data.similar_sessions) updateMemoryCount(data.match_count);
 }
 
@@ -446,9 +446,9 @@ function renderMemorySessions(sessions) {
   const container = document.getElementById('memoryResults');
   container.innerHTML = sessions.map(s => {
     const pids = s.persona_ids||[];
-    const chips = pids.filter(Boolean).map(pid => `<span class="persona-chip" style="border-color:${personaColors[pid]||'var(--border)'}44;">${personaIcons[pid]||'•'} ${pid}</span>`).join('');
+    const chips = pids.filter(Boolean).map(pid => `<span class="persona-chip" style="border-color:${personaColors[pid]||'var(--border)'}44;">${personaIcons[pid]||'•'} ${escapeHtml(pid)}</span>`).join('');
     const dateStr = s.started_at ? new Date(s.started_at*1000).toLocaleDateString() : '—';
-    return `<div class="info-card" onclick="toggleMemoryCard(this,'${s.session_id}')"><div class="info-card-header"><span class="info-card-title">${s.topic||'Untitled'}</span><span class="info-card-badge">${s.workflow_mode||'—'}</span></div><div class="info-card-meta">${dateStr}${s.turn_count?` · ${s.turn_count} turns`:''}</div><div class="persona-chips">${chips}</div><div class="info-card-body" id="memorySummary_${s.session_id}">${s.summary||'No summary.'}</div><div class="info-card-body" id="memoryDeliverable_${s.session_id}"></div></div>`;
+    return `<div class="info-card" onclick="toggleMemoryCard(this,'${escapeHtml(s.session_id)}')"><div class="info-card-header"><span class="info-card-title">${escapeHtml(s.topic||'Untitled')}</span><span class="info-card-badge">${escapeHtml(s.workflow_mode||'—')}</span></div><div class="info-card-meta">${dateStr}${s.turn_count?` · ${s.turn_count} turns`:''}</div><div class="persona-chips">${chips}</div><div class="info-card-body" id="memorySummary_${s.session_id}">${escapeHtml(s.summary||'No summary.')}</div><div class="info-card-body" id="memoryDeliverable_${s.session_id}"></div></div>`;
   }).join('');
 }
 
@@ -465,7 +465,7 @@ async function toggleMemoryCard(el, sessionId) {
         if(data.pins && data.pins.length > 0) {
           const sumDiv = document.getElementById(`memorySummary_${sessionId}`);
           const pinText = data.pins.map(p=>`📌 ${p.topic}: ${p.content}`).join('\n');
-          sumDiv.innerHTML = data.summary ? data.summary+'\n\n📋 Pins:\n'+pinText : '📋 Pins:\n'+pinText;
+          sumDiv.innerHTML = data.summary ? escapeHtml(data.summary)+'\n\n📋 Pins:\n'+pinText : '📋 Pins:\n'+pinText;
         }
       } catch(e) {}
     }
@@ -506,7 +506,7 @@ function addHitlHistoryItem(data) {
   const timeStr = time.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',second:'2-digit'});
   const item = document.createElement('div');
   item.className = 'hitl-history-item';
-  item.innerHTML = `<span class="hitl-history-mode ${data.mode}">${data.mode}</span><span class="hitl-history-msg">${data.message}</span><span class="hitl-history-time">${timeStr}</span>`;
+  item.innerHTML = `<span class="hitl-history-mode ${data.mode}">${escapeHtml(data.mode)}</span><span class="hitl-history-msg">${escapeHtml(data.message)}</span><span class="hitl-history-time">${timeStr}</span>`;
   container.appendChild(item);
   container.scrollTop = container.scrollHeight;
 }
@@ -591,7 +591,7 @@ function hideTyping() {
 function showToast(message, type = '') {
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span> ${message}`;
+  toast.innerHTML = `<span>${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span> ${escapeHtml(message)}`;
   document.body.appendChild(toast);
   setTimeout(() => { toast.style.animation = 'toastOut 0.3s ease forwards'; setTimeout(() => toast.remove(), 300); }, 3000);
 }
@@ -657,7 +657,7 @@ function renderSessionHistory() {
   container.innerHTML = sessionHistory.map(s => {
     const isActive = currentSession === s.session_id;
     const date = s.started_at ? new Date(s.started_at * 1000).toLocaleDateString() : '';
-    return `<div class="session-item ${isActive?'active':''}" onclick="loadSession('${s.session_id}')"><div class="session-topic">${s.topic||'Untitled'}</div><div class="session-meta">${date} · ${s.turn_count||0} turns</div></div>`;
+    return `<div class="session-item ${isActive?'active':''}" onclick="loadSession('${escapeHtml(s.session_id)}')"><div class="session-topic">${escapeHtml(s.topic||'Untitled')}</div><div class="session-meta">${date} · ${s.turn_count||0} turns</div></div>`;
   }).join('');
 }
 async function loadSession(sessionId) {
@@ -686,7 +686,7 @@ function loadTools() {
     document.getElementById('toolCount').textContent = data.total+' tools';
     const list = document.getElementById('toolList');
     if(!data.tools.length) { list.innerHTML='<div class="empty-state">No tools loaded.</div>'; return; }
-    list.innerHTML = data.tools.map(t => `<div class="info-card" style="cursor:default;"><div class="info-card-header"><div class="info-card-title">${t.name}</div><span class="info-card-badge">${t.execution_type||'built-in'}</span></div><div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${t.description}</div>${t.parameters.length?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Params: ${t.parameters.join(', ')}</div>`:''}</div>`).join('');
+    list.innerHTML = data.tools.map(t => `<div class="info-card" style="cursor:default;"><div class="info-card-header"><div class="info-card-title">${escapeHtml(t.name)}</div><span class="info-card-badge">${escapeHtml(t.execution_type||'built-in')}</span></div><div style="font-size:11px;color:var(--text-dim);margin-top:3px;">${escapeHtml(t.description)}</div>${t.parameters.length?`<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Params: ${escapeHtml(t.parameters.join(', '))}</div>`:''}</div>`).join('');
   }).catch(()=>document.getElementById('toolCount').textContent='Error');
 }
 function showCreateToolForm() { document.getElementById('createToolForm').style.display = 'block'; }
@@ -709,7 +709,7 @@ function loadKnowledge() {
     document.getElementById('knowledgeCount').textContent = data.length+' personas';
     const list = document.getElementById('knowledgeList');
     if(!data.length) { list.innerHTML='<div class="empty-state">No knowledge loaded yet.</div>'; return; }
-    list.innerHTML = data.map(p => `<div class="info-card" onclick="viewKnowledge('${p.persona_id}')"><div class="info-card-header"><div class="info-card-title">${p.persona_id}</div><span class="info-card-badge">${p.book_count} books${p.has_memories?' + mem':''}</span></div></div>`).join('');
+    list.innerHTML = data.map(p => `<div class="info-card" onclick="viewKnowledge('${escapeHtml(p.persona_id)}')"><div class="info-card-header"><div class="info-card-title">${escapeHtml(p.persona_id)}</div><span class="info-card-badge">${p.book_count} books${p.has_memories?' + mem':''}</span></div></div>`).join('');
   }).catch(()=>document.getElementById('knowledgeCount').textContent='Error');
 }
 function viewKnowledge(personaId) {
@@ -743,7 +743,7 @@ function loadIntelligence() {
     fetch('/api/intelligence/insights?limit=5').then(r=>r.json()).then(insights => {
       const list = document.getElementById('intelligenceInsights');
       if(!insights.length) return;
-      list.innerHTML = insights.map(ins => `<div class="info-card" style="cursor:default;"><div class="info-card-header"><div class="info-card-title" style="font-size:11px;">${ins.session_topic}</div><span class="info-card-badge">${ins.category}</span></div><div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${ins.insight.substring(0,150)}...</div></div>`).join('');
+      list.innerHTML = insights.map(ins => `<div class="info-card" style="cursor:default;"><div class="info-card-header"><div class="info-card-title" style="font-size:11px;">${escapeHtml(ins.session_topic)}</div><span class="info-card-badge">${escapeHtml(ins.category)}</span></div><div style="font-size:10px;color:var(--text-dim);margin-top:3px;">${escapeHtml(ins.insight.substring(0,150))}...</div></div>`).join('');
     });
   }).catch(()=>document.getElementById('intelligenceCount').textContent='0 insights');
 }
@@ -811,11 +811,11 @@ function loadSettings() {
     const sel = document.getElementById('keyProvider');
     const keyProviders = providers.filter(p=>p.requires_key);
     fetch('/api/settings/integrations').then(r=>r.json()).then(integrations => {
-      sel.innerHTML = '<option value="">Select provider...</option>' + keyProviders.map(p=>`<optgroup label="${p.name}"><option value="${p.id}|${p.key_name}">${p.key_name}</option></optgroup>`).join('') + `<optgroup label="Integrations">${integrations.map(i=>`<option value="${i.id}|${i.key_name}">${i.name}</option>`).join('')}</optgroup>`;
+      sel.innerHTML = '<option value="">Select provider...</option>' + keyProviders.map(p=>`<optgroup label="${escapeHtml(p.name)}"><option value="${escapeHtml(p.id)}|${escapeHtml(p.key_name)}">${escapeHtml(p.key_name)}</option></optgroup>`).join('') + `<optgroup label="Integrations">${integrations.map(i=>`<option value="${escapeHtml(i.id)}|${escapeHtml(i.key_name)}">${escapeHtml(i.name)}</option>`).join('')}</optgroup>`;
     });
   }).catch(()=>{});
   fetch('/api/settings/integrations').then(r=>r.json()).then(integrations => {
-    document.getElementById('settingsIntegrations').innerHTML = integrations.map(i => `<div class="modal-provider-card"><div><div class="modal-provider-name">${i.name}</div><div class="modal-provider-desc">${i.description}</div><div style="font-size:10px;color:var(--accent);margin-top:2px;"><a href="${i.url}" target="_blank">${i.url}</a></div></div><div style="font-size:10px;color:var(--text-muted);">Key: ${i.key_name}</div></div>`).join('');
+    document.getElementById('settingsIntegrations').innerHTML = integrations.map(i => `<div class="modal-provider-card"><div><div class="modal-provider-name">${escapeHtml(i.name)}</div><div class="modal-provider-desc">${escapeHtml(i.description)}</div><div style="font-size:10px;color:var(--accent);margin-top:2px;"><a href="${escapeHtml(i.url)}" target="_blank">${escapeHtml(i.url)}</a></div></div><div style="font-size:10px;color:var(--text-muted);">Key: ${escapeHtml(i.key_name)}</div></div>`).join('');
   }).catch(()=>{
     document.getElementById('settingsIntegrations').innerHTML = '<div style="font-size:11px;color:var(--text-muted);text-align:center;padding:12px;">No integrations configured.</div>';
   });
